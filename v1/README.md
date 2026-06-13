@@ -56,8 +56,11 @@ store, all stdlib (no vector DB required):
    ("agent X, in context Y, created claim Z"). The graph **rejects illegal
    relations** — e.g. `Evidence -SUPPORTS-> BoundedContext` — a second
    ontology firewall behind the validator.
-3. **Semantic** — an optional `SemanticIndex` *protocol seam* (no hard
-   dependency); a future `sqlite-vss` impl plugs in for similarity recall.
+3. **Semantic** — `LexicalSemanticIndex` (`semantic.py`): stdlib token-overlap
+   recall with idf weighting, implementing the `SemanticIndex` protocol. Wired
+   optionally into `MemoryStore`; recall is enrichment, never truth. A
+   `sqlite-vss`/embedding impl of the same two-method protocol swaps in
+   unchanged — the lexical index is the zero-dependency floor.
 
 **Amnesia protection:** the memory root is a Git repo. `checkpoint()` commits a
 sane reasoning state; `reset_to(sha)` hard-resets the agent back to it after a
@@ -100,5 +103,7 @@ orchestrator owns safety; the policy supplies intent.
 
 ## Next
 
-- A concrete `SemanticIndex` (sqlite-vss or embeddings) behind the existing
-  seam, for similarity recall over past reasoning.
+- An embedding/`sqlite-vss` `SemanticIndex` behind the existing seam, when
+  lexical recall is no longer enough.
+- Wire `Planner` to consult `semantic.recall()` before proposing, so prior
+  reasoning informs the next move.

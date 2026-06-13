@@ -13,6 +13,7 @@ from .graph import (
     TrajectoryEntry,
 )
 from .markdown_store import MarkdownStore
+from .semantic import LexicalSemanticIndex
 from .store import MemoryStore, SemanticIndex
 
 __all__ = [
@@ -24,4 +25,5 @@ __all__ = [
     "MarkdownStore",
     "MemoryStore",
     "SemanticIndex",
+    "LexicalSemanticIndex",
 ]
