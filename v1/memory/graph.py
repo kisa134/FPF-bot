@@ -183,6 +183,21 @@ class ReasoningGraph:
         ids = [r["nid"] for r in self._conn.execute(sql, params).fetchall()]
         return [n for nid in ids if (n := self.get_node(nid)) is not None]
 
+    def delete_object(self, object_id: str) -> None:
+        """Remove a node, its edges, and its trajectory entries.
+
+        This is the structural half of a transaction rollback: it undoes the
+        graph effect of one cognitive step so the SQLite state matches the
+        filesystem after a ``git reset``. Edges are removed explicitly (belt and
+        suspenders alongside the ON DELETE CASCADE foreign key).
+        """
+        self._conn.execute(
+            "DELETE FROM edges WHERE from_id = ? OR to_id = ?", (object_id, object_id)
+        )
+        self._conn.execute("DELETE FROM nodes WHERE id = ?", (object_id,))
+        self._conn.execute("DELETE FROM trajectory WHERE object_id = ?", (object_id,))
+        self._conn.commit()
+
     # -- trajectory log ----------------------------------------------------- #
     def log(
         self,

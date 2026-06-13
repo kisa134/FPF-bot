@@ -8,6 +8,7 @@ from .ontology import (
     EvidenceKind,
     Timespan,
 )
+from .orchestrator import Orchestrator, StepResult, Task
 from .sandbox import Sandbox, SandboxResult, SandboxStatus
 from .state_manager import StateManager, Step, SubmitOutcome
 from .validator import (
@@ -26,6 +27,9 @@ __all__ = [
     "Evidence",
     "EvidenceKind",
     "Timespan",
+    "Orchestrator",
+    "StepResult",
+    "Task",
     "Sandbox",
     "SandboxResult",
     "SandboxStatus",

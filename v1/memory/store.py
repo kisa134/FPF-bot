@@ -115,6 +115,20 @@ class MemoryStore:
     def init_repo(self) -> None:
         if not (self.root / ".git").exists():
             self.git("init", "-q")
+        # The structural db is managed manually (not versioned): git tracks only
+        # the epistemic layer + artifacts, so a reset wipes hallucinated files
+        # while the SQLite rollback is done explicitly via forget().
+        gi = self.root / ".gitignore"
+        if not gi.exists():
+            gi.write_text("graph.db\ngraph.db-journal\ngraph.db-wal\n", encoding="utf-8")
+        # Make commits succeed in isolated/CI environments (local scope only).
+        self.git("config", "user.email", "agent@fpf.local")
+        self.git("config", "user.name", "fpf-agent")
+        self.git("config", "commit.gpgsign", "false")
+
+    def forget(self, object_id: str) -> None:
+        """Structural rollback: drop a node, its edges, and its trajectory."""
+        self.graph.delete_object(object_id)
 
     def checkpoint(self, message: str) -> str:
         """Commit the current reasoning state; returns the commit sha."""

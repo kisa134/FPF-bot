@@ -63,9 +63,28 @@ store, all stdlib (no vector DB required):
 sane reasoning state; `reset_to(sha)` hard-resets the agent back to it after a
 hallucinatory dead end.
 
+## Atomic Cognitive Step (`core/orchestrator.py`)
+
+`StateManager` and `MemoryStore` are fused: the agent cannot change reasoning
+state except *through* memory. `Orchestrator.commit_step()` is an all-or-nothing
+transaction:
+
+1. **Pre-flight** — wrong step / invalid object → rejected, memory untouched.
+2. **Mutate** — markdown + graph (nodes/edges/trajectory) + artifact, then
+   `git commit`.
+3. **Verify** — sandbox runs the artifact. On `reward == 0` (FAIL/ABSTAIN) the
+   step is **rolled back whole**: `forget()` undoes the SQLite rows and
+   `git reset --hard` wipes the hallucinated files. The state machine never
+   advanced. On PASS the move is admitted and the checkpoint becomes the new
+   "last sane state".
+
+`test_atomic_loop.py` proves both paths: a successful step leaves a commit +
+DB rows + an advanced state; a failed step returns the filesystem **and** SQLite
+to exactly their pre-step state.
+
 ## Next
 
-- Wire `MemoryStore.remember()` into `StateManager` so every accepted move is
-  persisted + checkpointed automatically.
 - A concrete `SemanticIndex` (sqlite-vss) behind the existing seam.
 - Real isolation in `sandbox.py` (subprocess/container).
+- A planning algorithm that drives `commit_step` — the first real reasoning
+  policy on top of the now-protected loop.
