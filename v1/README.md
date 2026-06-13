@@ -82,9 +82,23 @@ transaction:
 DB rows + an advanced state; a failed step returns the filesystem **and** SQLite
 to exactly their pre-step state.
 
+## Policy layer (`policy/`)
+
+The first place a reasoning *policy* (a model) enters the protected loop. The
+orchestrator owns safety; the policy supplies intent.
+
+- `Policy` protocol — `propose(kind, task, step, tool_schema, kb, feedback)` →
+  the raw FPF object for the current step.
+- `ScriptedPolicy` — deterministic, for tests (no network).
+- `AnthropicPolicy` — Claude emits the step's FPF object via **forced tool
+  use** (`tool_choice`), so the model can only act by filling a validated tool
+  signature. Lazy `anthropic` import — the core never hard-depends on the SDK.
+- `Planner.run(task)` — sequences the policy through `commit_step`, feeds
+  rejection violations back for bounded self-correction, aborts cleanly instead
+  of looping. `test_planner.py` proves happy path → DONE, self-correction after
+  a dangling reference, and clean abort.
+
 ## Next
 
-- A concrete `SemanticIndex` (sqlite-vss) behind the existing seam.
-- Real isolation in `sandbox.py` (subprocess/container).
-- A planning algorithm that drives `commit_step` — the first real reasoning
-  policy on top of the now-protected loop.
+- A concrete `SemanticIndex` (sqlite-vss or embeddings) behind the existing
+  seam, for similarity recall over past reasoning.
