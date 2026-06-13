@@ -61,9 +61,15 @@ class Orchestrator:
     method to mutate the state machine or the memory independently.
     """
 
-    def __init__(self, memory_root: str | Path, *, agent: str = "agent") -> None:
+    def __init__(
+        self,
+        memory_root: str | Path,
+        *,
+        agent: str = "agent",
+        semantic: Any = None,
+    ) -> None:
         self.agent = agent
-        self.memory = MemoryStore(memory_root)
+        self.memory = MemoryStore(memory_root, semantic=semantic)
         self.sm = StateManager()
         # Establish the first "sane" checkpoint so rollback always has a target.
         self.memory.init_repo()
@@ -174,6 +180,31 @@ class Orchestrator:
             object_id=obj.id,
             sha=step_sha,
             verification=vres,
+        )
+
+    def finish(self, *, task: Task) -> StepResult:
+        """Close the WORK phase and move to DONE, checkpointing the result."""
+        before = self.sm.step
+        out = self.sm.finish()
+        if not out.accepted:
+            return StepResult(
+                ok=False,
+                step_before=before,
+                step_after=before,
+                object_id=None,
+                sha=None,
+                violations=out.violations,
+            )
+        sha = self.memory.checkpoint(
+            f"finish[{task.id}] {task.description}".strip(), allow_empty=True
+        )
+        self._last_good_sha = sha
+        return StepResult(
+            ok=True,
+            step_before=before,
+            step_after=self.sm.step,
+            object_id=None,
+            sha=sha,
         )
 
     # ----------------------------------------------------------------- #

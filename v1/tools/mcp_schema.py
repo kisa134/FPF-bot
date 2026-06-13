@@ -15,7 +15,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..core.ontology import BoundedContext, Claim, DecisionRecord, Evidence
+from ..core.ontology import (
+    BoundedContext,
+    Claim,
+    Commitment,
+    DecisionRecord,
+    Evidence,
+    Method,
+    PromiseContent,
+)
 
 # One tool per FPF move. Names match the state-machine steps' accepted kinds.
 _TOOL_MODELS = {
@@ -23,6 +31,15 @@ _TOOL_MODELS = {
     "submit_claim": (Claim, "Assert a claim inside a bounded context (A.1.1)."),
     "attach_evidence": (Evidence, "Attach evidence to a target claim (A.2.4)."),
     "record_decision": (DecisionRecord, "Record a local choice (C.11)."),
+    "submit_promise_content": (
+        PromiseContent,
+        "State what is promised, separate from who commits (A.2.3).",
+    ),
+    "submit_commitment": (
+        Commitment,
+        "Bind a party to a promise content (A.2.8).",
+    ),
+    "submit_method": (Method, "Define a context-local way of doing (A.3.1)."),
 }
 
 
@@ -46,4 +63,8 @@ TOOL_TO_KIND = {
     "submit_claim": "Claim",
     "attach_evidence": "Evidence",
     "record_decision": "DecisionRecord",
+    "submit_promise_content": "PromiseContent",
+    "submit_commitment": "Commitment",
+    "submit_method": "Method",
 }
+KIND_TO_TOOL = {v: k for k, v in TOOL_TO_KIND.items()}

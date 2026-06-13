@@ -17,7 +17,14 @@ import subprocess
 from pathlib import Path
 from typing import Any, Optional, Protocol, runtime_checkable
 
-from ..core.ontology import Claim, DecisionRecord, Evidence
+from ..core.ontology import (
+    Claim,
+    Commitment,
+    DecisionRecord,
+    Evidence,
+    Method,
+    PromiseContent,
+)
 from .graph import ReasoningGraph
 from .markdown_store import MarkdownStore
 
@@ -46,6 +53,13 @@ def _edges_for(obj: Any) -> list[tuple[str, str, str]]:
         edges.append((obj.id, "IN_CONTEXT", obj.context_id))
         for cid in obj.supporting_claim_ids:
             edges.append((obj.id, "RELIES_ON", cid))
+    elif isinstance(obj, PromiseContent):
+        edges.append((obj.id, "IN_CONTEXT", obj.context_id))
+    elif isinstance(obj, Commitment):
+        edges.append((obj.id, "IN_CONTEXT", obj.context_id))
+        edges.append((obj.id, "PROMISES", obj.promise_content_id))
+    elif isinstance(obj, Method):
+        edges.append((obj.id, "IN_CONTEXT", obj.context_id))
     return edges
 
 
@@ -130,10 +144,17 @@ class MemoryStore:
         """Structural rollback: drop a node, its edges, and its trajectory."""
         self.graph.delete_object(object_id)
 
-    def checkpoint(self, message: str) -> str:
-        """Commit the current reasoning state; returns the commit sha."""
+    def checkpoint(self, message: str, *, allow_empty: bool = False) -> str:
+        """Commit the current reasoning state; returns the commit sha.
+
+        ``allow_empty`` records a marker commit even when nothing changed on disk
+        (used by phase transitions like finish, which mutate only state).
+        """
         self.git("add", "-A")
-        self.git("commit", "-q", "-m", message)
+        args = ["commit", "-q", "-m", message]
+        if allow_empty:
+            args.append("--allow-empty")
+        self.git(*args)
         return self.git("rev-parse", "HEAD")
 
     def reset_to(self, sha: str) -> None:

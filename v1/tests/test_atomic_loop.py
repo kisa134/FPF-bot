@@ -67,7 +67,7 @@ class TestSuccessfulStep(unittest.TestCase):
 
             self.assertTrue(res.ok, res.violations)
             self.assertEqual(res.step_before, Step.FRAME)
-            self.assertEqual(res.step_after, Step.CLAIM)  # advanced
+            self.assertEqual(res.step_after, Step.WORK)  # framing opens WORK
             self.assertNotEqual(res.sha, init_sha)  # a new commit exists
             self.assertEqual(orch.last_good_sha, res.sha)
 
@@ -95,10 +95,14 @@ class TestSuccessfulStep(unittest.TestCase):
             }
             res = orch.commit_step("DecisionRecord", decision, task=Task("t3"), verify=PASS)
             self.assertTrue(res.ok)
-            self.assertEqual(orch.step, Step.DONE)
+            self.assertEqual(orch.step, Step.WORK)  # decision keeps WORK open
             # decision relies on the claim, structurally
             relies = orch.memory.graph.neighbors("D1", rel="RELIES_ON")
             self.assertEqual([n.id for n in relies], ["C1"])
+            # an explicit finish closes the loop
+            fin = orch.finish(task=Task("t4", "done"))
+            self.assertTrue(fin.ok)
+            self.assertEqual(orch.step, Step.DONE)
 
 
 class TestFailedStepRollback(unittest.TestCase):
@@ -109,7 +113,7 @@ class TestFailedStepRollback(unittest.TestCase):
 
             sane_sha = orch.last_good_sha
             traj_before = len(orch.memory.graph.trajectory())
-            step_before = orch.step  # EVIDENCE
+            step_before = orch.step  # WORK
 
             # The agent proposes a valid Evidence object, but its artifact fails
             # the sandbox (reward == 0).
@@ -144,7 +148,7 @@ class TestFailedStepRollback(unittest.TestCase):
             self.assertTrue(
                 orch.commit_step("Evidence", _evidence_raw(), task=Task("t2b"), verify=PASS).ok
             )
-            self.assertEqual(orch.step, Step.DECISION)
+            self.assertEqual(orch.step, Step.WORK)
 
     def test_wrong_step_does_not_touch_memory(self):
         with tempfile.TemporaryDirectory() as d:
@@ -176,7 +180,7 @@ class TestRealSandboxDrivesLoop(unittest.TestCase):
             )
             self.assertFalse(res.ok)
             self.assertTrue(res.rolled_back)
-            self.assertEqual(orch.step, Step.EVIDENCE)  # did not advance
+            self.assertEqual(orch.step, Step.WORK)  # did not change phase
             self.assertIsNone(orch.memory.graph.get_node("E1"))
 
     def test_correct_artifact_lands(self):
@@ -192,7 +196,7 @@ class TestRealSandboxDrivesLoop(unittest.TestCase):
             )
             self.assertTrue(res.ok, res.verification)
             self.assertEqual(res.verification.status, SandboxStatus.PASS)
-            self.assertEqual(orch.step, Step.DECISION)
+            self.assertEqual(orch.step, Step.WORK)
             self.assertIsNotNone(orch.memory.graph.get_node("E1"))
 
 

@@ -24,7 +24,15 @@ from typing import Any, Iterable
 
 from pydantic import ValidationError
 
-from .ontology import BoundedContext, Claim, DecisionRecord, Evidence
+from .ontology import (
+    BoundedContext,
+    Claim,
+    Commitment,
+    DecisionRecord,
+    Evidence,
+    Method,
+    PromiseContent,
+)
 
 # Map an FPF object kind name -> its Pydantic type, for parsing raw output.
 _KINDS: dict[str, type] = {
@@ -32,6 +40,9 @@ _KINDS: dict[str, type] = {
     "Claim": Claim,
     "Evidence": Evidence,
     "DecisionRecord": DecisionRecord,
+    "PromiseContent": PromiseContent,
+    "Commitment": Commitment,
+    "Method": Method,
 }
 
 
@@ -61,6 +72,9 @@ class KnowledgeBase:
     claims: dict[str, Claim] = field(default_factory=dict)
     evidence: dict[str, Evidence] = field(default_factory=dict)
     decisions: dict[str, DecisionRecord] = field(default_factory=dict)
+    promises: dict[str, PromiseContent] = field(default_factory=dict)
+    commitments: dict[str, Commitment] = field(default_factory=dict)
+    methods: dict[str, Method] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -114,6 +128,9 @@ def _anchor_for(kind: str) -> str:
         "Claim": "A.1.1",
         "Evidence": "A.2.4",
         "DecisionRecord": "C.11",
+        "PromiseContent": "A.2.3",
+        "Commitment": "A.2.8",
+        "Method": "A.3.1",
     }.get(kind, "FPF")
 
 
@@ -170,6 +187,45 @@ def check_references(obj: Any, kb: KnowledgeBase) -> list[Violation]:
                     )
                 )
 
+    elif isinstance(obj, (PromiseContent, Method)):
+        # A.1.1: both live in exactly one declared frame.
+        if obj.context_id not in kb.contexts:
+            violations.append(
+                Violation(
+                    code="DANGLING_CONTEXT",
+                    object_kind=type(obj).__name__,
+                    object_id=obj.id,
+                    detail=f"context_id {obj.context_id!r} is not a declared BoundedContext",
+                    spec_anchor="A.1.1",
+                )
+            )
+
+    elif isinstance(obj, Commitment):
+        if obj.context_id not in kb.contexts:
+            violations.append(
+                Violation(
+                    code="DANGLING_CONTEXT",
+                    object_kind="Commitment",
+                    object_id=obj.id,
+                    detail=f"context_id {obj.context_id!r} is not a declared BoundedContext",
+                    spec_anchor="A.1.1",
+                )
+            )
+        # A.2.8: a commitment must bind to a promise content that exists.
+        if obj.promise_content_id not in kb.promises:
+            violations.append(
+                Violation(
+                    code="DANGLING_PROMISE",
+                    object_kind="Commitment",
+                    object_id=obj.id,
+                    detail=(
+                        f"promise_content_id {obj.promise_content_id!r} is not a "
+                        "declared PromiseContent"
+                    ),
+                    spec_anchor="A.2.8",
+                )
+            )
+
     return violations
 
 
@@ -201,6 +257,12 @@ def admit(obj: Any, kb: KnowledgeBase) -> None:
         kb.evidence[obj.id] = obj
     elif isinstance(obj, DecisionRecord):
         kb.decisions[obj.id] = obj
+    elif isinstance(obj, PromiseContent):
+        kb.promises[obj.id] = obj
+    elif isinstance(obj, Commitment):
+        kb.commitments[obj.id] = obj
+    elif isinstance(obj, Method):
+        kb.methods[obj.id] = obj
     else:  # pragma: no cover - defensive
         raise TypeError(f"cannot admit object of type {type(obj).__name__}")
 

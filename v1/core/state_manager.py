@@ -1,21 +1,20 @@
-"""FPF reasoning state machine.
+"""FPF reasoning state machine — phased, branching.
 
-The orchestrator does not let the model "free-associate". It walks the model
-through a fixed sequence of FPF moves, and each transition is *gated by the
-validator*: you cannot advance until the current move has produced a
-well-formed, reference-complete FPF object.
+The earlier V1 loop was a rigid line (one Claim, one Evidence, one Decision).
+Real FPF work branches: many claims, evidence attached in any order, promises,
+commitments, and methods interleaved, several decisions. So the machine now has
+three phases:
 
-V1 loop (deliberately small):
+    FRAME  -> at least one BoundedContext is declared (A.1.1)
+    WORK   -> open phase: Claim / Evidence / PromiseContent / Commitment /
+              Method / DecisionRecord / further BoundedContext, repeatable, in
+              any referentially-valid order
+    DONE   -> reached only by an explicit finish(), allowed once the work has
+              produced at least one DecisionRecord (C.11)
 
-    FRAME      -> a BoundedContext is declared (A.1.1)
-    CLAIM      -> at least one Claim is asserted inside that frame
-    EVIDENCE   -> Evidence is attached to a claim (A.2.4)
-    DECISION   -> a DecisionRecord is recorded (C.11)
-    DONE
-
-Each step has an explicit set of object kinds it will accept. Submitting the
-wrong kind for the current step is itself a (procedural) rejection -- the state
-machine, not a prompt, enforces order.
+Every move is still gated by the validator; the machine only decides *which
+kinds* are legal now and *when finishing is allowed*. Choosing among the legal
+moves (and choosing to finish) is the policy's job, not the machine's.
 """
 
 from __future__ import annotations
@@ -29,25 +28,23 @@ from .validator import KnowledgeBase, Violation, admit, validate
 
 class Step(str, Enum):
     FRAME = "FRAME"
-    CLAIM = "CLAIM"
-    EVIDENCE = "EVIDENCE"
-    DECISION = "DECISION"
+    WORK = "WORK"
     DONE = "DONE"
 
 
-# Which object kinds may be submitted at each step, and where a successful
-# submission moves next. The minimum count must be met before advancing.
+# All object kinds that may be submitted during the open WORK phase.
+_WORK_KINDS = {
+    "BoundedContext",
+    "Claim",
+    "Evidence",
+    "PromiseContent",
+    "Commitment",
+    "Method",
+    "DecisionRecord",
+}
 _ACCEPTS: dict[Step, set[str]] = {
     Step.FRAME: {"BoundedContext"},
-    Step.CLAIM: {"Claim"},
-    Step.EVIDENCE: {"Evidence"},
-    Step.DECISION: {"DecisionRecord"},
-}
-_NEXT: dict[Step, Step] = {
-    Step.FRAME: Step.CLAIM,
-    Step.CLAIM: Step.EVIDENCE,
-    Step.EVIDENCE: Step.DECISION,
-    Step.DECISION: Step.DONE,
+    Step.WORK: set(_WORK_KINDS),
 }
 
 
@@ -61,7 +58,7 @@ class SubmitOutcome:
 
 @dataclass
 class StateManager:
-    """Drives the FPF loop over a shared :class:`KnowledgeBase`."""
+    """Drives the phased FPF loop over a shared :class:`KnowledgeBase`."""
 
     kb: KnowledgeBase = field(default_factory=KnowledgeBase)
     step: Step = Step.FRAME
@@ -70,59 +67,64 @@ class StateManager:
         """Object kinds the agent may legally submit right now."""
         return set(_ACCEPTS.get(self.step, set()))
 
+    def can_finish(self) -> bool:
+        """Finishing is lawful once WORK has produced a decision (C.11)."""
+        return self.step is Step.WORK and len(self.kb.decisions) >= 1
+
     def submit(self, kind: str, raw: dict[str, Any]) -> SubmitOutcome:
-        """Attempt one FPF move. Advances only on a fully valid object."""
+        """Attempt one FPF move. FRAME advances to WORK on a valid context;
+        WORK is a fixed point (it stays open for more moves)."""
         before = self.step
 
         if self.step is Step.DONE:
-            return SubmitOutcome(
-                accepted=False,
-                step_before=before,
-                step_after=before,
-                violations=[
-                    Violation(
-                        code="LOOP_DONE",
-                        object_kind=kind,
-                        object_id=str(raw.get("id", "?")),
-                        detail="reasoning loop already complete; nothing to submit",
-                        spec_anchor="orchestrator",
-                    )
-                ],
-            )
+            return self._reject(before, kind, raw, "LOOP_DONE", "loop already complete")
 
         if kind not in self.accepts():
-            return SubmitOutcome(
-                accepted=False,
-                step_before=before,
-                step_after=before,
-                violations=[
-                    Violation(
-                        code="WRONG_STEP",
-                        object_kind=kind,
-                        object_id=str(raw.get("id", "?")),
-                        detail=(
-                            f"step {self.step.value} accepts {sorted(self.accepts())}, "
-                            f"not {kind!r}"
-                        ),
-                        spec_anchor="orchestrator",
-                    )
-                ],
+            return self._reject(
+                before,
+                kind,
+                raw,
+                "WRONG_STEP",
+                f"step {self.step.value} accepts {sorted(self.accepts())}, not {kind!r}",
             )
 
         result = validate(kind, raw, self.kb)
         if not result.ok:
-            return SubmitOutcome(
-                accepted=False,
-                step_before=before,
-                step_after=before,
-                violations=result.violations,
-            )
+            return SubmitOutcome(False, before, before, result.violations)
 
         admit(result.parsed, self.kb)
-        self.step = _NEXT[self.step]
+        if self.step is Step.FRAME:
+            self.step = Step.WORK  # first frame opens the work phase
+        return SubmitOutcome(True, before, self.step, [])
+
+    def finish(self) -> SubmitOutcome:
+        """Close the work phase. Only legal from WORK with a decision present."""
+        before = self.step
+        if not self.can_finish():
+            return self._reject(
+                before,
+                "<finish>",
+                {},
+                "CANNOT_FINISH",
+                "finishing requires WORK phase with at least one DecisionRecord (C.11)",
+            )
+        self.step = Step.DONE
+        return SubmitOutcome(True, before, self.step, [])
+
+    def _reject(
+        self, before: Step, kind: str, raw: dict[str, Any], code: str, detail: str
+    ) -> SubmitOutcome:
         return SubmitOutcome(
-            accepted=True,
-            step_before=before,
-            step_after=self.step,
-            violations=[],
+            False,
+            before,
+            before,
+            [
+                Violation(
+                    code=code,
+                    object_kind=kind,
+                    object_id=str(raw.get("id", "?")),
+                    detail=detail,
+                    spec_anchor="orchestrator",
+                )
+            ],
         )

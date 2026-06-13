@@ -21,13 +21,24 @@ import re
 from pathlib import Path
 from typing import Any
 
-from ..core.ontology import BoundedContext, Claim, DecisionRecord, Evidence
+from ..core.ontology import (
+    BoundedContext,
+    Claim,
+    Commitment,
+    DecisionRecord,
+    Evidence,
+    Method,
+    PromiseContent,
+)
 
 _KINDS: dict[str, type] = {
     "BoundedContext": BoundedContext,
     "Claim": Claim,
     "Evidence": Evidence,
     "DecisionRecord": DecisionRecord,
+    "PromiseContent": PromiseContent,
+    "Commitment": Commitment,
+    "Method": Method,
 }
 
 # Matches the embedded payload block: ```json fpf ... ```

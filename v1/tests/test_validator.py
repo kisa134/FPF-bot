@@ -137,34 +137,84 @@ class TestInterObjectInvariants(unittest.TestCase):
         self.assertIn("E1", kb.evidence)
 
 
+def _decision():
+    return {
+        "id": "D1",
+        "context_id": "Proj.Alpha",
+        "decision_subject": "datastore",
+        "option_set": ["postgres", "mysql"],
+        "choice_rule": "lowest p95 under budget",
+        "chosen": "postgres",
+        "supporting_claim_ids": ["C1"],
+    }
+
+
 class TestStateMachine(unittest.TestCase):
-    """The loop enforces FPF move order, not a prompt."""
+    """The phased loop enforces FPF structure, not a prompt."""
 
     def test_cannot_claim_before_framing(self):
         sm = StateManager()
         self.assertEqual(sm.step, Step.FRAME)
-        out = sm.submit("Claim", _claim())  # wrong step
+        out = sm.submit("Claim", _claim())  # FRAME accepts only BoundedContext
         self.assertFalse(out.accepted)
         self.assertEqual(out.violations[0].code, "WRONG_STEP")
-        self.assertEqual(sm.step, Step.FRAME)  # did not advance
+        self.assertEqual(sm.step, Step.FRAME)
 
-    def test_happy_path_walks_to_done(self):
+    def test_work_phase_is_open_and_repeatable(self):
         sm = StateManager()
         self.assertTrue(sm.submit("BoundedContext", _ctx()).accepted)
-        self.assertEqual(sm.step, Step.CLAIM)
-        self.assertTrue(sm.submit("Claim", _claim()).accepted)
-        self.assertTrue(sm.submit("Evidence", _evidence_empirical()).accepted)
-        decision = {
-            "id": "D1",
-            "context_id": "Proj.Alpha",
-            "decision_subject": "datastore",
-            "option_set": ["postgres", "mysql"],
-            "choice_rule": "lowest p95 under budget",
-            "chosen": "postgres",
-            "supporting_claim_ids": ["C1"],
-        }
-        self.assertTrue(sm.submit("DecisionRecord", decision).accepted)
+        self.assertEqual(sm.step, Step.WORK)  # framing opens WORK
+        # WORK accepts many kinds, in any order, repeatably
+        self.assertTrue(sm.submit("Claim", _claim("C1")).accepted)
+        self.assertTrue(sm.submit("Claim", _claim("C2")).accepted)
+        self.assertTrue(sm.submit("Evidence", _evidence_empirical("E1", "C2")).accepted)
+        self.assertEqual(sm.step, Step.WORK)  # stays open
+
+    def test_finish_requires_a_decision(self):
+        sm = StateManager()
+        sm.submit("BoundedContext", _ctx())
+        sm.submit("Claim", _claim())
+        self.assertFalse(sm.can_finish())
+        self.assertFalse(sm.finish().accepted)  # no decision yet
+        self.assertTrue(sm.submit("DecisionRecord", _decision()).accepted)
+        self.assertTrue(sm.can_finish())
+        self.assertTrue(sm.finish().accepted)
         self.assertEqual(sm.step, Step.DONE)
+
+    def test_promise_commitment_method_flow(self):
+        sm = StateManager()
+        sm.submit("BoundedContext", _ctx())
+        self.assertTrue(
+            sm.submit(
+                "PromiseContent",
+                {"id": "P1", "context_id": "Proj.Alpha", "statement": "ship by Q3"},
+            ).accepted
+        )
+        self.assertTrue(
+            sm.submit(
+                "Commitment",
+                {
+                    "id": "K1",
+                    "context_id": "Proj.Alpha",
+                    "promise_content_id": "P1",
+                    "debtor": "team",
+                    "creditor": "user",
+                },
+            ).accepted
+        )
+        # a commitment to an undeclared promise is rejected
+        bad = sm.submit(
+            "Commitment",
+            {
+                "id": "K2",
+                "context_id": "Proj.Alpha",
+                "promise_content_id": "ghost",
+                "debtor": "team",
+                "creditor": "user",
+            },
+        )
+        self.assertFalse(bad.accepted)
+        self.assertEqual(bad.violations[0].code, "DANGLING_PROMISE")
 
 
 def _admit_claim(kb: KnowledgeBase):

@@ -1,10 +1,10 @@
-"""Planner: drives the atomic loop with a Policy until the task is done.
+"""Planner: drives the branching atomic loop with a Policy.
 
-This is the first place a real reasoning *policy* (a model) enters the protected
-loop. The planner asks the policy for the next FPF object, runs it through the
-orchestrator's atomic ``commit_step``, and on rejection feeds the violations
-back to the policy for a bounded number of retries. The orchestrator still owns
-all safety — the planner only sequences intent.
+The planner asks the policy for the next move (an FPF object, or finish), runs
+object moves through the orchestrator's atomic ``commit_step`` and finish moves
+through ``finish``, and feeds rejections back to the policy for bounded
+self-correction. Before each move it consults the semantic index so prior
+reasoning informs the choice — memory now influences the next step.
 """
 
 from __future__ import annotations
@@ -15,17 +15,8 @@ from typing import Optional
 
 from ..core.orchestrator import Orchestrator, StepResult, Task, Verifier
 from ..core.state_manager import Step
-from ..tools.mcp_schema import tool_schemas
-from .policy import Policy
-
-# tool name -> input_schema, built once from the ontology types.
-_SCHEMAS = {t["name"]: t["input_schema"] for t in tool_schemas()}
-_KIND_TO_TOOL = {
-    "BoundedContext": "declare_bounded_context",
-    "Claim": "submit_claim",
-    "Evidence": "attach_evidence",
-    "DecisionRecord": "record_decision",
-}
+from ..memory.store import SemanticIndex
+from .policy import FINISH, Policy
 
 
 @dataclass
@@ -38,7 +29,7 @@ class PlanResult:
 
 
 class Planner:
-    """Sequences a Policy through the FPF loop on a fresh Orchestrator."""
+    """Sequences a Policy through the branching FPF loop."""
 
     def __init__(
         self,
@@ -46,10 +37,11 @@ class Planner:
         policy: Policy,
         *,
         agent: str = "planner",
+        semantic: Optional[SemanticIndex] = None,
         max_retries: int = 2,
-        max_steps: int = 12,
+        max_steps: int = 24,
     ) -> None:
-        self.orch = Orchestrator(memory_root, agent=agent)
+        self.orch = Orchestrator(memory_root, agent=agent, semantic=semantic)
         self.policy = policy
         self.max_retries = max_retries
         self.max_steps = max_steps
@@ -65,34 +57,31 @@ class Planner:
         steps = 0
 
         while self.orch.step is not Step.DONE and steps < self.max_steps:
-            accepts = self.orch.sm.accepts()
-            if not accepts:
-                break
-            kind = sorted(accepts)[0]
-            tool_schema = _SCHEMAS[_KIND_TO_TOOL[kind]]
-
+            recall = self._recall(task)
             feedback = None
             result: Optional[StepResult] = None
+
             for _ in range(self.max_retries + 1):
-                raw = self.policy.propose(
-                    kind=kind,
+                kind, raw = self.policy.choose(
                     task=task,
                     step=self.orch.step,
-                    tool_schema=tool_schema,
+                    allowed_kinds=self.orch.sm.accepts(),
+                    can_finish=self.orch.sm.can_finish(),
                     kb=self.orch.sm.kb,
+                    recall=recall,
                     feedback=feedback,
                 )
-                result = self.orch.commit_step(
-                    kind, raw, task=task, thought=thought, verify=verify
-                )
+                if kind == FINISH:
+                    result = self.orch.finish(task=task)
+                else:
+                    result = self.orch.commit_step(
+                        kind, raw or {}, task=task, thought=thought, verify=verify
+                    )
                 history.append(result)
                 steps += 1
                 if result.ok:
                     break
-                # carry the rejection back so the policy can self-correct
-                feedback = result.violations or (
-                    [] if result.verification is None else []
-                )
+                feedback = result.violations or []
 
             if result is None or not result.ok:
                 return PlanResult(
@@ -100,9 +89,7 @@ class Planner:
                     final_step=self.orch.step,
                     steps_taken=steps,
                     history=history,
-                    aborted_reason=(
-                        f"step {kind} failed after {self.max_retries + 1} attempts"
-                    ),
+                    aborted_reason=f"move failed after {self.max_retries + 1} attempts",
                 )
 
         ok = self.orch.step is Step.DONE
@@ -111,5 +98,11 @@ class Planner:
             final_step=self.orch.step,
             steps_taken=steps,
             history=history,
-            aborted_reason=None if ok else "max_steps reached before DONE",
+            aborted_reason=None if ok else "max_steps reached before finishing",
         )
+
+    def _recall(self, task: Task) -> list[str]:
+        sem = self.orch.memory.semantic
+        if sem is None:
+            return []
+        return sem.recall(f"{task.id} {task.description}", k=5)

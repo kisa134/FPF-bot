@@ -195,3 +195,82 @@ class DecisionRecord(_Frozen):
                 f"{self.chosen!r} not in {self.option_set!r}"
             )
         return self
+
+
+# --------------------------------------------------------------------------- #
+# A.2.3 - U.PromiseContent: what is promised (separate from who commits)
+# --------------------------------------------------------------------------- #
+class PromiseContent(_Frozen):
+    """The content of a promise — what is promised, not who is bound (A.2.3).
+
+    FPF keeps promise *content* separate from the *commitment* that binds a
+    party to it (A.2.8). A PromiseContent is a reusable description of an
+    obligation's substance, local to one bounded context.
+    """
+
+    id: str = Field(..., min_length=1, description="Stable promise-content id.")
+    context_id: str = Field(
+        ..., min_length=1, description="Frame the promise content holds in (A.1.1)."
+    )
+    statement: str = Field(
+        ..., min_length=1, description="What is promised, in plain text."
+    )
+    conditions: list[str] = Field(
+        default_factory=list,
+        description="Conditions under which the promise content applies.",
+    )
+
+
+class CommitmentState(str, Enum):
+    """A.2.8 deontic lifecycle (minimal)."""
+
+    ACTIVE = "active"
+    DISCHARGED = "discharged"
+    CANCELLED = "cancelled"
+
+
+# --------------------------------------------------------------------------- #
+# A.2.8 - U.Commitment: a party bound to a promise content
+# --------------------------------------------------------------------------- #
+class Commitment(_Frozen):
+    """A deontic commitment: a debtor bound to a creditor for a PromiseContent.
+
+    A.2.8 separates the obligation (this object) from its content (A.2.3) and
+    from the speech act that created it (A.2.9). The commitment must name the
+    promise content it binds to, and both parties, inside one context.
+    """
+
+    id: str = Field(..., min_length=1, description="Stable commitment id.")
+    context_id: str = Field(
+        ..., min_length=1, description="Frame the commitment holds in (A.1.1)."
+    )
+    promise_content_id: str = Field(
+        ..., min_length=1, description="The PromiseContent this binds to (A.2.3)."
+    )
+    debtor: str = Field(
+        ..., min_length=1, description="The party obligated (A.2.8)."
+    )
+    creditor: str = Field(
+        ..., min_length=1, description="The party the obligation is owed to (A.2.8)."
+    )
+    state: CommitmentState = Field(default=CommitmentState.ACTIVE)
+
+
+# --------------------------------------------------------------------------- #
+# A.3.1 - U.Method: a context-defined way of doing
+# --------------------------------------------------------------------------- #
+class Method(_Frozen):
+    """A context-defined way of doing work (A.3.1).
+
+    A.3 keeps the method (the way of doing) distinct from its description and
+    from performed work. This is the way itself, named and scoped to a context.
+    """
+
+    id: str = Field(..., min_length=1, description="Stable method id.")
+    context_id: str = Field(
+        ..., min_length=1, description="Frame the method is defined in (A.1.1)."
+    )
+    name: str = Field(..., min_length=1, description="The method's name.")
+    description: str = Field(
+        ..., min_length=1, description="What the way of doing consists of."
+    )

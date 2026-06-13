@@ -33,6 +33,10 @@ _ALLOWED_EDGES: set[tuple[str, str, str]] = {
     ("DecisionRecord", "IN_CONTEXT", "BoundedContext"),
     ("Evidence", "SUPPORTS", "Claim"),
     ("DecisionRecord", "RELIES_ON", "Claim"),
+    ("PromiseContent", "IN_CONTEXT", "BoundedContext"),
+    ("Commitment", "IN_CONTEXT", "BoundedContext"),
+    ("Commitment", "PROMISES", "PromiseContent"),
+    ("Method", "IN_CONTEXT", "BoundedContext"),
 }
 
 _SCHEMA = """

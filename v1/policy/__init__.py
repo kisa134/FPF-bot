@@ -1,7 +1,7 @@
 """Policy layer: the seam where a reasoning policy (a model) drives the loop."""
 
 from .planner import Planner, PlanResult
-from .policy import AnthropicPolicy, Policy, ScriptedPolicy, kb_summary
+from .policy import FINISH, AnthropicPolicy, Move, Policy, ScriptedPolicy, kb_summary
 
 __all__ = [
     "Planner",
@@ -9,5 +9,7 @@ __all__ = [
     "Policy",
     "ScriptedPolicy",
     "AnthropicPolicy",
+    "Move",
+    "FINISH",
     "kb_summary",
 ]
