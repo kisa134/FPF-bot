@@ -1,0 +1,53 @@
+name: FPF Orchestrator
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "Reasoning task for the agent"
+        required: true
+        default: "Choose the primary datastore for a new service"
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install "pydantic>=2,<3"
+      - name: Run the test suite
+        run: python -m unittest discover -s v1/tests -p 'test_*.py' -v
+
+  run:
+    # Live reasoning run — triggered manually from the Actions tab.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install "pydantic>=2,<3" openai
+      - name: Show available WaveSpeed model ids (for tuning DEFAULT_MODELS)
+        continue-on-error: true
+        env:
+          FPF_LLM_API_KEY: ${{ secrets.FPF_LLM_API_KEY }}
+        run: |
+          curl -sS https://llm.wavespeed.ai/v1/models \
+            -H "Authorization: Bearer $FPF_LLM_API_KEY" | head -c 6000 || true
+      - name: Run the reasoning loop
+        env:
+          FPF_LLM_API_KEY: ${{ secrets.FPF_LLM_API_KEY }}
+        run: |
+          python -m v1 run "${{ inputs.task }}" --memory ./fpf-memory
+      - name: Upload the reasoning trace (memory)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fpf-memory
+          path: fpf-memory
