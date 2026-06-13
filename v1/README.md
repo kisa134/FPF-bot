@@ -18,9 +18,10 @@ rejects under-specified or referentially-broken structures.
 
 | Module | Responsibility | Spec anchor |
 |---|---|---|
-| `core/ontology.py` | Pydantic kernel types: `BoundedContext`, `Claim`, `Evidence`, `DecisionRecord` | A.1.1, A.2.4, C.11 |
-| `core/validator.py` | Gatekeeper: schema (layer 1) + referential integrity (layer 2) → machine-readable `Violation`s | A.1.1, A.2.4, C.11 |
-| `core/state_manager.py` | FPF loop `FRAME → CLAIM → EVIDENCE → DECISION → DONE`; advances only on a valid object | — |
+| `core/ontology.py` | Pydantic kernel types: `BoundedContext`, `Claim`, `Evidence`, `DecisionRecord`, `PromiseContent`, `Commitment`, `Method` | A.1.1, A.2.3, A.2.4, A.2.8, A.3.1, C.11 |
+| `core/validator.py` | Gatekeeper: schema (layer 1) + referential integrity (layer 2) → machine-readable `Violation`s | A.1.1, A.2.4, A.2.8, C.11 |
+| `core/state_manager.py` | Phased loop `FRAME → WORK → DONE`; WORK is open/repeatable, DONE via explicit `finish()` (needs a decision, C.11) | — |
+| `__main__.py` | CLI: `python -m v1 run "<task>"` (live) / `--demo` (offline) | — |
 | `core/sandbox.py` | Fail-closed isolated checks turning artifacts into empirical evidence (V1 stub) | A.2.4 |
 | `tools/mcp_schema.py` | MCP/tool-use schemas generated from the ontology types | — |
 | `memory/graph.py` | Structural memory: SQLite nodes/edges + trajectory log; rejects illegal relations | A.1.1, A.2.4, C.11 |
@@ -42,6 +43,17 @@ rejects under-specified or referentially-broken structures.
 ```bash
 pip install "pydantic>=2,<3"
 python -m unittest discover -s v1/tests -p 'test_*.py' -v
+```
+
+## Run the loop
+
+```bash
+# offline — scripted policy, no API key, shows the full trajectory
+python -m v1 run "Choose the primary datastore" --demo
+
+# live — Claude drives the loop via forced tool use
+pip install anthropic && export ANTHROPIC_API_KEY=...
+python -m v1 run "Choose the primary datastore" --memory ./fpf-memory
 ```
 
 ## Memory: relational graph over vectors
