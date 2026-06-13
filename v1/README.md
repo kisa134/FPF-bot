@@ -23,6 +23,9 @@ rejects under-specified or referentially-broken structures.
 | `core/state_manager.py` | FPF loop `FRAME → CLAIM → EVIDENCE → DECISION → DONE`; advances only on a valid object | — |
 | `core/sandbox.py` | Fail-closed isolated checks turning artifacts into empirical evidence (V1 stub) | A.2.4 |
 | `tools/mcp_schema.py` | MCP/tool-use schemas generated from the ontology types | — |
+| `memory/graph.py` | Structural memory: SQLite nodes/edges + trajectory log; rejects illegal relations | A.1.1, A.2.4, C.11 |
+| `memory/markdown_store.py` | Epistemic memory: lossless FPF-object ↔ Git-friendly Markdown | — |
+| `memory/store.py` | Three-layer facade + Git checkpoint/reset + semantic seam | — |
 
 ## Invariants enforced today
 
@@ -41,9 +44,28 @@ pip install "pydantic>=2,<3"
 python -m unittest discover -s v1/tests -p 'test_*.py' -v
 ```
 
-## Status / next
+## Memory: relational graph over vectors
 
-V1 = in-memory `KnowledgeBase`. Next milestone: a persistent **memory layer**
-(Git-versioned Markdown epistemes + SQLite relational graph) so the validated
-objects above are stored as nodes/edges and the agent's reasoning trajectory is
-checkpointable. See repo-root discussion / upcoming `v1/memory/`.
+Classic vector RAG is blind to **hierarchy, causality, and timeline** — the
+three things an FPF agent needs. `v1/memory/` replaces it with a three-layer
+store, all stdlib (no vector DB required):
+
+1. **Epistemic** — Git-versioned Markdown working set (`markdown_store.py`).
+2. **Structural** — SQLite relational graph: `nodes` + `edges`
+   (`IN_CONTEXT`, `SUPPORTS`, `RELIES_ON`) + a `trajectory` log
+   ("agent X, in context Y, created claim Z"). The graph **rejects illegal
+   relations** — e.g. `Evidence -SUPPORTS-> BoundedContext` — a second
+   ontology firewall behind the validator.
+3. **Semantic** — an optional `SemanticIndex` *protocol seam* (no hard
+   dependency); a future `sqlite-vss` impl plugs in for similarity recall.
+
+**Amnesia protection:** the memory root is a Git repo. `checkpoint()` commits a
+sane reasoning state; `reset_to(sha)` hard-resets the agent back to it after a
+hallucinatory dead end.
+
+## Next
+
+- Wire `MemoryStore.remember()` into `StateManager` so every accepted move is
+  persisted + checkpointed automatically.
+- A concrete `SemanticIndex` (sqlite-vss) behind the existing seam.
+- Real isolation in `sandbox.py` (subprocess/container).
