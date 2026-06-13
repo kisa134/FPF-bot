@@ -51,10 +51,19 @@ python -m unittest discover -s v1/tests -p 'test_*.py' -v
 # offline — scripted policy, no API key, shows the full trajectory
 python -m v1 run "Choose the primary datastore" --demo
 
-# live — Claude drives the loop via forced tool use
-pip install anthropic && export ANTHROPIC_API_KEY=...
+# live via WaveSpeed (default) — top Chinese models with fallback (Qwen -> DeepSeek -> Kimi)
+pip install openai            # key in v1/policy/_secret.py (gitignored) or FPF_LLM_API_KEY
 python -m v1 run "Choose the primary datastore" --memory ./fpf-memory
+
+# other backends
+python -m v1 run "..." --provider anthropic       # ANTHROPIC_API_KEY
+python -m v1 run "..." --provider openai-compat --base-url <url> --model <id>  # FPF_LLM_API_KEY
 ```
+
+Providers live behind one `Policy` protocol (`policy/`): `WaveSpeedPolicy`
+(OpenAI-compatible aggregator, model fallback), `AnthropicPolicy`,
+`OpenAICompatPolicy`, and `ScriptedPolicy` (offline tests). The model can only
+act through forced tool/function calls — never free text.
 
 ## Memory: relational graph over vectors
 

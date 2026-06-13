@@ -11,6 +11,7 @@ sha, and the final reasoning graph the agent built.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import tempfile
 from datetime import datetime, timedelta
@@ -53,23 +54,63 @@ _DEMO_OBJECTS = {
 }
 
 
-def _build_policy(demo: bool):
-    if demo:
+def _build_policy(args: argparse.Namespace):
+    if args.demo:
         return ScriptedPolicy(_DEMO_MOVES, _DEMO_OBJECTS)
-    try:
-        from .policy import AnthropicPolicy
 
-        return AnthropicPolicy()
-    except Exception as exc:  # missing SDK or key
-        print(f"error: could not start AnthropicPolicy ({exc}).", file=sys.stderr)
-        print("Hint: run with --demo, or `pip install anthropic` and set "
-              "ANTHROPIC_API_KEY.", file=sys.stderr)
+    if args.provider == "wavespeed":
+        try:
+            from .policy import WaveSpeedPolicy
+
+            models = tuple(args.model.split(",")) if args.model else None
+            return WaveSpeedPolicy(models=models)
+        except Exception as exc:
+            print(f"error: could not start WaveSpeedPolicy ({exc}).", file=sys.stderr)
+            print("Hint: `pip install openai`; key in v1/policy/_secret.py or "
+                  "FPF_LLM_API_KEY.", file=sys.stderr)
+            raise SystemExit(2)
+
+    if args.provider == "anthropic":
+        try:
+            from .policy import AnthropicPolicy
+
+            return AnthropicPolicy()
+        except Exception as exc:  # missing SDK or key
+            print(f"error: could not start AnthropicPolicy ({exc}).", file=sys.stderr)
+            print("Hint: --demo, or `pip install anthropic` + ANTHROPIC_API_KEY.",
+                  file=sys.stderr)
+            raise SystemExit(2)
+
+    # openai-compatible (DeepSeek / Qwen / Kimi / GLM / gateway)
+    base_url = args.base_url or os.environ.get("FPF_LLM_BASE_URL")
+    api_key = os.environ.get("FPF_LLM_API_KEY")
+    model = args.model or os.environ.get("FPF_LLM_MODEL")
+    missing = [
+        name
+        for name, val in (
+            ("--base-url / FPF_LLM_BASE_URL", base_url),
+            ("FPF_LLM_API_KEY (env only)", api_key),
+            ("--model / FPF_LLM_MODEL", model),
+        )
+        if not val
+    ]
+    if missing:
+        print("error: openai-compat provider needs: " + ", ".join(missing),
+              file=sys.stderr)
+        raise SystemExit(2)
+    try:
+        from .policy import OpenAICompatPolicy
+
+        return OpenAICompatPolicy(model=model, base_url=base_url, api_key=api_key)
+    except Exception as exc:
+        print(f"error: could not start OpenAICompatPolicy ({exc}).", file=sys.stderr)
+        print("Hint: `pip install openai`.", file=sys.stderr)
         raise SystemExit(2)
 
 
 def _run(args: argparse.Namespace) -> int:
     memory_root = args.memory or tempfile.mkdtemp(prefix="fpf-")
-    policy = _build_policy(args.demo)
+    policy = _build_policy(args)
     planner = Planner(memory_root, policy, semantic=LexicalSemanticIndex())
     task = Task(id=args.task_id, description=args.task)
 
@@ -91,6 +132,9 @@ def _run(args: argparse.Namespace) -> int:
         print(line)
 
     print()
+    served_by = getattr(policy, "last_model", None)
+    if served_by:
+        print(f"served by: {served_by}")
     print(f"result: {'DONE' if result.ok else 'INCOMPLETE'} "
           f"({result.steps_taken} moves, final phase {result.final_step.value})")
     if result.aborted_reason:
@@ -118,6 +162,14 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--task-id", default="task-1", help="stable task id")
     run.add_argument("--memory", help="memory directory (default: a temp dir)")
     run.add_argument("--demo", action="store_true", help="offline scripted policy")
+    run.add_argument(
+        "--provider",
+        choices=["wavespeed", "anthropic", "openai-compat"],
+        default="wavespeed",
+        help="LLM backend (default: wavespeed)",
+    )
+    run.add_argument("--model", help="model id, or comma-list for wavespeed fallback")
+    run.add_argument("--base-url", help="base url for --provider openai-compat")
     run.set_defaults(func=_run)
 
     args = parser.parse_args(argv)
