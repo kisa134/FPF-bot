@@ -16,7 +16,7 @@ import unittest
 from datetime import datetime, timedelta
 
 from v1.core import Orchestrator, Step, Task
-from v1.core.sandbox import SandboxResult, SandboxStatus
+from v1.core.sandbox import SandboxResult, SandboxStatus, make_python_verifier
 
 NOW = datetime(2026, 6, 13)
 LATER = NOW + timedelta(days=30)
@@ -156,6 +156,44 @@ class TestFailedStepRollback(unittest.TestCase):
             self.assertFalse(res.rolled_back)
             self.assertIsNone(orch.memory.graph.get_node("C1"))
             self.assertEqual(len(orch.memory.graph.trajectory()), 0)
+
+
+class TestRealSandboxDrivesLoop(unittest.TestCase):
+    """The real subprocess sandbox -- not a mock -- gates the loop."""
+
+    CHECK = "from artifact import speedup\nassert speedup() >= 1.0\n"
+
+    def test_buggy_artifact_rolls_back(self):
+        with tempfile.TemporaryDirectory() as d:
+            orch = Orchestrator(d)
+            _frame_and_claim(orch)
+            res = orch.commit_step(
+                "Evidence",
+                _evidence_raw(),
+                task=Task("t2", "evidence with broken benchmark"),
+                artifact="def speedup():\n    return 0.3  # regression\n",
+                verify=make_python_verifier(self.CHECK),
+            )
+            self.assertFalse(res.ok)
+            self.assertTrue(res.rolled_back)
+            self.assertEqual(orch.step, Step.EVIDENCE)  # did not advance
+            self.assertIsNone(orch.memory.graph.get_node("E1"))
+
+    def test_correct_artifact_lands(self):
+        with tempfile.TemporaryDirectory() as d:
+            orch = Orchestrator(d)
+            _frame_and_claim(orch)
+            res = orch.commit_step(
+                "Evidence",
+                _evidence_raw(),
+                task=Task("t2", "evidence with passing benchmark"),
+                artifact="def speedup():\n    return 1.8\n",
+                verify=make_python_verifier(self.CHECK),
+            )
+            self.assertTrue(res.ok, res.verification)
+            self.assertEqual(res.verification.status, SandboxStatus.PASS)
+            self.assertEqual(orch.step, Step.DECISION)
+            self.assertIsNotNone(orch.memory.graph.get_node("E1"))
 
 
 if __name__ == "__main__":

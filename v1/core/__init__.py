@@ -9,7 +9,13 @@ from .ontology import (
     Timespan,
 )
 from .orchestrator import Orchestrator, StepResult, Task
-from .sandbox import Sandbox, SandboxResult, SandboxStatus
+from .sandbox import (
+    Sandbox,
+    SandboxResult,
+    SandboxStatus,
+    make_python_verifier,
+    run_isolated_python,
+)
 from .state_manager import StateManager, Step, SubmitOutcome
 from .validator import (
     KnowledgeBase,
@@ -33,6 +39,8 @@ __all__ = [
     "Sandbox",
     "SandboxResult",
     "SandboxStatus",
+    "make_python_verifier",
+    "run_isolated_python",
     "StateManager",
     "Step",
     "SubmitOutcome",
