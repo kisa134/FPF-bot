@@ -16,25 +16,26 @@
     ::-webkit-scrollbar-thumb { background: #334155; border-radius: 9px; }
   </style>
 </head>
-<body class="bg-slate-950 text-slate-200 h-screen overflow-hidden">
-  <div class="flex h-full">
-    <!-- LEFT: controls -->
-    <aside class="w-80 shrink-0 border-r border-slate-800 bg-slate-900/60 p-5 flex flex-col gap-4">
+<body class="bg-slate-950 text-slate-200 min-h-screen lg:h-screen lg:overflow-hidden">
+  <div class="flex flex-col lg:flex-row lg:h-full">
+    <!-- CONTROLS -->
+    <aside class="w-full lg:w-80 shrink-0 border-b lg:border-b-0 lg:border-r border-slate-800 bg-slate-900/60 p-5 flex flex-col gap-4">
       <div>
         <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-indigo-400 to-emerald-400 bg-clip-text text-transparent">FPF Studio</h1>
         <p class="text-xs text-slate-500 mt-1">Reasoning under verifiable frames</p>
       </div>
 
       <label class="text-xs uppercase tracking-wide text-slate-400">Task</label>
-      <textarea id="task" rows="4" class="bg-slate-800/70 border border-slate-700 rounded-lg p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
+      <textarea id="task" rows="3" class="bg-slate-800/70 border border-slate-700 rounded-lg p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
         placeholder="e.g. Choose the primary datastore for a high-write telemetry service"></textarea>
 
       <label class="text-xs uppercase tracking-wide text-slate-400">Brain (model)</label>
       <select id="provider" class="bg-slate-800/70 border border-slate-700 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-        <option value="demo">Demo (offline, scripted)</option>
-        <option value="wavespeed">WaveSpeed · Qwen → DeepSeek → Kimi</option>
+        <option value="wavespeed">WaveSpeed · Qwen → DeepSeek → Kimi (live)</option>
+        <option value="demo">Demo (canned example — ignores your task)</option>
         <option value="anthropic">Claude (Anthropic)</option>
       </select>
+      <p id="provider-hint" class="text-[11px] text-amber-300/90 leading-snug hidden"></p>
       <input id="model" class="bg-slate-800/70 border border-slate-700 rounded-lg p-2 text-sm mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
         placeholder="model id(s), optional" />
 
@@ -44,7 +45,7 @@
 
       <div id="status" class="text-xs text-slate-400 mt-1 leading-relaxed"></div>
 
-      <div class="mt-auto text-[11px] text-slate-600 leading-relaxed">
+      <div class="hidden lg:block mt-auto text-[11px] text-slate-600 leading-relaxed">
         <div class="font-semibold text-slate-500 mb-1">Legend</div>
         <div class="flex flex-wrap gap-1.5">
           <span class="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300">Context</span>
@@ -56,17 +57,17 @@
       </div>
     </aside>
 
-    <!-- CENTER: live timeline -->
-    <section class="w-[380px] shrink-0 border-r border-slate-800 flex flex-col">
+    <!-- TIMELINE -->
+    <section class="w-full lg:w-[380px] shrink-0 border-b lg:border-b-0 lg:border-r border-slate-800 flex flex-col h-72 lg:h-auto">
       <div class="px-5 py-3 border-b border-slate-800 text-sm font-semibold text-slate-300">Reasoning timeline</div>
       <div id="timeline" class="flex-1 overflow-y-auto p-4 space-y-2.5"></div>
     </section>
 
-    <!-- RIGHT: graph + inspector -->
-    <main class="flex-1 relative">
+    <!-- GRAPH + INSPECTOR -->
+    <main class="relative flex-1 h-[480px] lg:h-auto">
       <div class="px-5 py-3 border-b border-slate-800 text-sm font-semibold text-slate-300">Knowledge graph</div>
       <div id="graph" class="absolute inset-0 top-[45px]"></div>
-      <div id="inspector" class="hidden absolute top-[60px] right-4 w-96 max-h-[80%] overflow-auto bg-slate-900/95 border border-slate-700 rounded-xl shadow-2xl p-4 backdrop-blur">
+      <div id="inspector" class="hidden absolute top-[60px] right-3 left-3 lg:left-auto lg:w-96 max-h-[80%] overflow-auto bg-slate-900/95 border border-slate-700 rounded-xl shadow-2xl p-4 backdrop-blur">
         <div class="flex items-center justify-between mb-2">
           <div id="inspector-title" class="text-sm font-semibold"></div>
           <button onclick="document.getElementById('inspector').classList.add('hidden')" class="text-slate-500 hover:text-slate-200">✕</button>

@@ -109,6 +109,7 @@ async function loadGraph(runId) {
     layout: { name: "breadthfirst", directed: true, padding: 30, spacingFactor: 1.3 },
   });
   cy.on("tap", "node", (e) => inspect(runId, e.target.id()));
+  setTimeout(() => { cy.resize(); cy.fit(undefined, 40); }, 50);
 }
 
 function shortLabel(id) { return id.length > 18 ? id.slice(0, 16) + "…" : id; }
@@ -122,5 +123,17 @@ async function inspect(runId, oid) {
   $("inspector").classList.remove("hidden");
 }
 
+function updateHint() {
+  const hint = $("provider-hint");
+  if ($("provider").value === "demo") {
+    hint.textContent = "⚠ Demo проигрывает зашитый пример и НЕ анализирует твою задачу. Для реального ответа выбери WaveSpeed.";
+    hint.classList.remove("hidden");
+  } else {
+    hint.classList.add("hidden");
+  }
+}
+
 $("run").addEventListener("click", run);
+$("provider").addEventListener("change", updateHint);
 $("task").addEventListener("keydown", (e) => { if (e.metaKey && e.key === "Enter") run(); });
+updateHint();
