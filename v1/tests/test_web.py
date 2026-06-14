@@ -1,7 +1,6 @@
-"""Smoke test for the FPF Studio API (offline demo provider).
+"""Smoke test for the FPF Swarm studio API (offline demo).
 
-Skips cleanly if FastAPI / httpx are not installed, so the core suite still runs
-in minimal environments.
+Skips cleanly if FastAPI / httpx are not installed.
 """
 
 from __future__ import annotations
@@ -15,42 +14,44 @@ try:
     from v1.web.server import app
 
     _HAVE_WEB = True
-except Exception:  # fastapi/httpx not installed
+except Exception:
     _HAVE_WEB = False
 
 
 @unittest.skipUnless(_HAVE_WEB, "fastapi/httpx not installed")
-class TestStudio(unittest.TestCase):
+class TestSwarmStudio(unittest.TestCase):
     def setUp(self):
         self.c = TestClient(app)
 
-    def test_run_streams_steps_and_builds_graph(self):
-        rid = self.c.post(
-            "/api/runs", json={"task": "pick a datastore", "provider": "demo"}
-        ).json()["run_id"]
+    def test_team_debate_streams_and_commits(self):
+        rid = self.c.post("/api/runs", json={"task": "datastore for BTC", "provider": "demo"}).json()["run_id"]
 
-        done = None
+        events, done = [], None
         with self.c.stream("GET", f"/api/runs/{rid}/stream") as s:
             for line in s.iter_lines():
                 if line.startswith("data: "):
                     ev = json.loads(line[6:])
-                    if ev.get("type") == "done":
+                    if ev.get("type") == "agent":
+                        events.append(ev)
+                    elif ev.get("type") == "done":
                         done = ev
+
+        actions = [e["action"] for e in events]
+        agents = {e["agent"] for e in events}
+        self.assertIn("Architect", agents)
+        self.assertIn("Censor", agents)
+        self.assertIn("veto", actions)     # the censor actually pushed back
+        self.assertIn("revise", actions)   # the architect corrected
+        self.assertIn("commit", actions)
+
         self.assertIsNotNone(done)
         self.assertTrue(done["ok"])
-        self.assertEqual(done["final_phase"], "DONE")
+        self.assertGreaterEqual(done["committed"], 4)
 
         g = self.c.get(f"/api/runs/{rid}/graph").json()
-        kinds = {n["kind"] for n in g["nodes"]}
-        self.assertIn("DecisionRecord", kinds)
-        rels = {e["rel"] for e in g["edges"]}
-        self.assertIn("RELIES_ON", rels)
+        self.assertIn("DecisionRecord", {n["kind"] for n in g["nodes"]})
 
-        obj = self.c.get(f"/api/runs/{rid}/object/D1").json()
-        self.assertEqual(obj["kind"], "DecisionRecord")
-        self.assertIn(obj["payload"]["chosen"], obj["payload"]["option_set"])
-
-    def test_ui_assets_served(self):
+    def test_ui_assets(self):
         self.assertEqual(self.c.get("/").status_code, 200)
         self.assertEqual(self.c.get("/app.js").status_code, 200)
 

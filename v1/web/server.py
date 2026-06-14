@@ -1,16 +1,9 @@
-"""FPF Studio — FastAPI backend for the reasoning UI.
+"""FPF Studio backend — streams a live FPF-Swarm (team of agents).
 
-Wraps the Planner/Orchestrator behind a small HTTP API and serves the static
-frontend. A run executes in a background thread; each move is pushed onto a
-queue and streamed to the browser over SSE, so the human watches the agent build
-its reasoning live — including the firewall rejecting bad moves.
-
-Endpoints
-    POST /api/runs                 -> start a run, returns {run_id}
-    GET  /api/runs/{id}/stream     -> SSE: step / done / error events
-    GET  /api/runs/{id}/graph      -> {nodes, edges} reasoning graph
-    GET  /api/runs/{id}/object/{o} -> the FPF object behind a node
-    GET  /                         -> the studio UI
+A run starts the Architect ↔ Censor team in a background thread; every agent
+action (propose / veto / approve / commit) is streamed to the browser over SSE,
+so you watch the team collaborate live and can open any agent. The shared
+reasoning graph and FPF objects are exposed for inspection.
 """
 
 from __future__ import annotations
@@ -27,12 +20,10 @@ from typing import Any, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 
-from ..core.orchestrator import StepResult, Task
 from ..memory import LexicalSemanticIndex
-from ..policy import FINISH, Planner, ScriptedPolicy
+from ..policy.swarm import AgentEvent, SwarmRunner
 
 _STATIC = Path(__file__).parent / "static"
-
 app = FastAPI(title="FPF Studio")
 
 
@@ -42,74 +33,74 @@ class Run:
     task: str
     provider: str
     q: "queue.Queue[Optional[dict]]" = field(default_factory=queue.Queue)
-    planner: Optional[Planner] = None
+    runner: Optional[SwarmRunner] = None
     done: bool = False
-    served_by: Optional[str] = None
 
 
 _RUNS: dict[str, Run] = {}
 
 
-def _step_event(sr: StepResult) -> dict:
-    return {
-        "type": "step",
-        "ok": sr.ok,
-        "kind": sr.kind,
-        "object_id": sr.object_id,
-        "rationale": sr.rationale,
-        "phase": f"{sr.step_before.value}→{sr.step_after.value}",
-        "sha": (sr.sha or "")[:8],
-        "rolled_back": sr.rolled_back,
-        "reason": (
-            sr.violations[0].detail
-            if sr.violations
-            else (sr.verification.detail if (sr.verification and not sr.ok) else None)
-        ),
-    }
+class _PassCensor:
+    """Fallback auditor (always approves) for providers without a live Censor."""
+
+    def review(self, **_: Any) -> tuple[bool, str]:
+        return True, "no independent censor configured — passed."
 
 
-def _build_policy(provider: str, model: Optional[str]):
+def _build_team(provider: str, model: Optional[str]):
+    """Return (architect, censor, served_by_getter)."""
     if provider == "demo":
-        from ..policy.demo import demo_policy
+        from ..policy.swarm_demo import demo_swarm
 
-        return demo_policy()
+        ds = demo_swarm()
+        return ds, ds, lambda: "demo-swarm"
+
     if provider == "wavespeed":
-        from ..policy import WaveSpeedPolicy
+        from ..policy.swarm import LLMCensor
+        from ..policy.wavespeed import BASE_URL, WaveSpeedPolicy, _resolve_key
 
+        key = _resolve_key()
         models = tuple(m.strip() for m in model.split(",")) if model else None
-        return WaveSpeedPolicy(models=models)
+        architect = WaveSpeedPolicy(models=models)
+        # Different model for the Censor → lower correlated blind spots.
+        censor = LLMCensor(model="deepseek/deepseek-v3.2", base_url=BASE_URL, api_key=key)
+        return architect, censor, lambda: architect.last_model
+
     if provider == "anthropic":
         from ..policy import AnthropicPolicy
 
-        return AnthropicPolicy()
+        a = AnthropicPolicy()
+        return a, _PassCensor(), lambda: "claude"
+
     raise ValueError(f"unknown provider {provider!r}")
 
 
+def _evt(e: AgentEvent) -> dict:
+    return {
+        "type": "agent", "agent": e.agent, "role": e.role, "action": e.action,
+        "content": e.content, "kind": e.kind, "object_id": e.object_id,
+        "to": e.to, "ok": e.ok, "round": e.round,
+    }
+
+
 def _worker(run: Run, model: Optional[str], task_id: str) -> None:
+    from ..core.orchestrator import Task
+
     try:
-        policy = _build_policy(run.provider, model)
+        architect, censor, served_by = _build_team(run.provider, model)
         root = tempfile.mkdtemp(prefix=f"fpf-{run.id[:8]}-")
-        run.planner = Planner(root, policy, semantic=LexicalSemanticIndex())
-        result = run.planner.run(
+        run.runner = SwarmRunner(root, architect, censor, semantic=LexicalSemanticIndex())
+        result = run.runner.run(
             Task(id=task_id, description=run.task),
-            on_step=lambda sr: run.q.put(_step_event(sr)),
+            on_event=lambda e: run.q.put(_evt(e)),
         )
-        run.served_by = getattr(policy, "last_model", None)
-        run.q.put(
-            {
-                "type": "done",
-                "ok": result.ok,
-                "final_phase": result.final_step.value,
-                "steps": result.steps_taken,
-                "served_by": run.served_by,
-                "reason": result.aborted_reason,
-            }
-        )
-    except Exception as exc:  # surface failures to the UI
+        result.update({"type": "done", "served_by": served_by()})
+        run.q.put(result)
+    except Exception as exc:
         run.q.put({"type": "error", "message": str(exc)})
     finally:
         run.done = True
-        run.q.put(None)  # sentinel
+        run.q.put(None)
 
 
 @app.post("/api/runs")
@@ -120,8 +111,7 @@ def start_run(body: dict[str, Any]) -> dict[str, str]:
     run = Run(id=uuid.uuid4().hex, task=task, provider=body.get("provider", "demo"))
     _RUNS[run.id] = run
     threading.Thread(
-        target=_worker,
-        args=(run, body.get("model"), body.get("task_id", "task-1")),
+        target=_worker, args=(run, body.get("model"), body.get("task_id", "task-1")),
         daemon=True,
     ).start()
     return {"run_id": run.id}
@@ -147,27 +137,24 @@ def stream(run_id: str) -> StreamingResponse:
 @app.get("/api/runs/{run_id}/graph")
 def graph(run_id: str) -> dict[str, list]:
     run = _RUNS.get(run_id)
-    if run is None or run.planner is None:
+    if run is None or run.runner is None:
         raise HTTPException(404, "no graph yet")
-    g = run.planner.orch.memory.graph
-    nodes = [
-        {"id": n.id, "kind": n.kind, "context": n.context_id} for n in g.all_nodes()
-    ]
-    edges = [
-        {"source": e.from_id, "target": e.to_id, "rel": e.rel} for e in g.all_edges()
-    ]
-    return {"nodes": nodes, "edges": edges}
+    g = run.runner.orch.memory.graph
+    return {
+        "nodes": [{"id": n.id, "kind": n.kind, "context": n.context_id} for n in g.all_nodes()],
+        "edges": [{"source": e.from_id, "target": e.to_id, "rel": e.rel} for e in g.all_edges()],
+    }
 
 
 @app.get("/api/runs/{run_id}/object/{object_id}")
 def get_object(run_id: str, object_id: str) -> dict[str, Any]:
     run = _RUNS.get(run_id)
-    if run is None or run.planner is None:
+    if run is None or run.runner is None:
         raise HTTPException(404, "no such run")
-    node = run.planner.orch.memory.graph.get_node(object_id)
+    node = run.runner.orch.memory.graph.get_node(object_id)
     if node is None or not node.path:
         raise HTTPException(404, "no such object")
-    obj = run.planner.orch.memory.md.read(node.path)
+    obj = run.runner.orch.memory.md.read(node.path)
     return {"kind": node.kind, "payload": obj.model_dump(mode="json")}
 
 
