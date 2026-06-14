@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.db
+*.sqlite3
+.venv/
+
+# local secrets (never commit)
+v1/policy/_secret.py
