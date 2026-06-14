@@ -112,7 +112,10 @@ class ReasoningGraph:
     """SQLite-backed graph of FPF objects and their relations."""
 
     def __init__(self, db_path: str = ":memory:") -> None:
-        self._conn = sqlite3.connect(db_path)
+        # check_same_thread=False: the web UI reads the graph from a different
+        # thread than the worker that built it (access is serialized — reads
+        # happen after the run finishes).
+        self._conn = sqlite3.connect(db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON;")
         self._conn.executescript(_SCHEMA)
@@ -150,6 +153,14 @@ class ReasoningGraph:
             "SELECT * FROM nodes WHERE id = ?", (node_id,)
         ).fetchone()
         return _row_to_node(row) if row else None
+
+    def all_nodes(self) -> list[Node]:
+        rows = self._conn.execute("SELECT * FROM nodes ORDER BY created_at").fetchall()
+        return [_row_to_node(r) for r in rows]
+
+    def all_edges(self) -> list[Edge]:
+        rows = self._conn.execute("SELECT * FROM edges ORDER BY created_at").fetchall()
+        return [Edge(r["from_id"], r["to_id"], r["rel"], r["created_at"]) for r in rows]
 
     # -- edges -------------------------------------------------------------- #
     def add_edge(self, from_id: str, to_id: str, rel: str) -> Edge:
