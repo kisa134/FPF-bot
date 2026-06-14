@@ -64,8 +64,16 @@ class StateManager:
     step: Step = Step.FRAME
 
     def accepts(self) -> set[str]:
-        """Object kinds the agent may legally submit right now."""
-        return set(_ACCEPTS.get(self.step, set()))
+        """Object kinds the agent may legally submit right now.
+
+        Once a frame exists, BoundedContext is removed from the WORK options so
+        the agent cannot loop re-declaring the same context — it must progress
+        to claims, evidence, and a decision.
+        """
+        allowed = set(_ACCEPTS.get(self.step, set()))
+        if self.step is Step.WORK and self.kb.contexts:
+            allowed.discard("BoundedContext")
+        return allowed
 
     def can_finish(self) -> bool:
         """Finishing is lawful once WORK has produced a decision (C.11)."""
