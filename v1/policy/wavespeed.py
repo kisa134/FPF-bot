@@ -65,6 +65,7 @@ class WaveSpeedPolicy:
             for m in self.models
         ]
         self.last_model: Optional[str] = None
+        self.last_rationale: Optional[str] = None
 
     def choose(
         self,
@@ -90,6 +91,7 @@ class WaveSpeedPolicy:
                     feedback=feedback,
                 )
                 self.last_model = model
+                self.last_rationale = backend.last_rationale
                 return move
             except Exception as exc:  # try the next model
                 errors.append(f"{model}: {exc}")

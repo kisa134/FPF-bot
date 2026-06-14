@@ -5,77 +5,94 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>FPF Studio</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: "class" };</script>
   <script src="https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
   <style>
-    body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    :root { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
     #graph { width: 100%; height: 100%; }
-    .fade-in { animation: fade .35s ease both; }
-    @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-    ::-webkit-scrollbar { width: 9px; height: 9px; }
-    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 9px; }
+    .fade-in { animation: fade .3s cubic-bezier(.2,.7,.3,1) both; }
+    @keyframes fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 8px; }
+    .dark ::-webkit-scrollbar-thumb { background: #27272a; }
+    textarea { field-sizing: content; }
   </style>
 </head>
-<body class="bg-slate-950 text-slate-200 min-h-screen lg:h-screen lg:overflow-hidden">
-  <div class="flex flex-col lg:flex-row lg:h-full">
-    <!-- CONTROLS -->
-    <aside class="w-full lg:w-80 shrink-0 border-b lg:border-b-0 lg:border-r border-slate-800 bg-slate-900/60 p-5 flex flex-col gap-4">
-      <div>
-        <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-indigo-400 to-emerald-400 bg-clip-text text-transparent">FPF Studio</h1>
-        <p class="text-xs text-slate-500 mt-1">Reasoning under verifiable frames</p>
+<body class="h-screen overflow-hidden bg-white text-zinc-900 dark:bg-[#0a0a0b] dark:text-zinc-100">
+  <div class="flex flex-col h-full">
+
+    <!-- HEADER -->
+    <header class="shrink-0 h-14 px-4 flex items-center gap-3 border-b border-zinc-200 dark:border-zinc-800">
+      <div class="flex items-center gap-2 mr-2">
+        <div class="w-6 h-6 rounded-md bg-gradient-to-br from-indigo-500 to-emerald-400"></div>
+        <span class="font-semibold tracking-tight">FPF Studio</span>
+        <span class="hidden sm:inline text-xs text-zinc-400">· reasoning under verifiable frames</span>
       </div>
 
-      <label class="text-xs uppercase tracking-wide text-slate-400">Task</label>
-      <textarea id="task" rows="3" class="bg-slate-800/70 border border-slate-700 rounded-lg p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        placeholder="e.g. Choose the primary datastore for a high-write telemetry service"></textarea>
-
-      <label class="text-xs uppercase tracking-wide text-slate-400">Brain (model)</label>
-      <select id="provider" class="bg-slate-800/70 border border-slate-700 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-        <option value="wavespeed">WaveSpeed · Qwen → DeepSeek → Kimi (live)</option>
-        <option value="demo">Demo (canned example — ignores your task)</option>
-        <option value="anthropic">Claude (Anthropic)</option>
+      <select id="provider" class="ml-auto text-sm rounded-lg px-2.5 py-1.5 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 focus:outline-none">
+        <option value="wavespeed">WaveSpeed · Qwen→DeepSeek→Kimi</option>
+        <option value="demo">Demo (offline example)</option>
+        <option value="anthropic">Claude</option>
       </select>
-      <p id="provider-hint" class="text-[11px] text-amber-300/90 leading-snug hidden"></p>
-      <input id="model" class="bg-slate-800/70 border border-slate-700 rounded-lg p-2 text-sm mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        placeholder="model id(s), optional" />
+      <input id="model" placeholder="model id (optional)"
+        class="hidden md:block w-44 text-sm mono rounded-lg px-2.5 py-1.5 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 focus:outline-none" />
 
-      <button id="run" class="mt-1 bg-gradient-to-r from-indigo-500 to-emerald-500 hover:opacity-90 transition rounded-lg py-2.5 text-sm font-semibold text-white">
-        ▶ Run reasoning
-      </button>
+      <button id="report-btn" class="text-sm rounded-lg px-3 py-1.5 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition disabled:opacity-40" disabled>Report</button>
+      <button id="theme" title="Toggle theme" class="w-9 h-9 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition">🌙</button>
+    </header>
 
-      <div id="status" class="text-xs text-slate-400 mt-1 leading-relaxed"></div>
-
-      <div class="hidden lg:block mt-auto text-[11px] text-slate-600 leading-relaxed">
-        <div class="font-semibold text-slate-500 mb-1">Legend</div>
-        <div class="flex flex-wrap gap-1.5">
-          <span class="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300">Context</span>
-          <span class="px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300">Claim</span>
-          <span class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">Evidence</span>
-          <span class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300">Decision</span>
-          <span class="px-1.5 py-0.5 rounded bg-fuchsia-500/20 text-fuchsia-300">Commitment</span>
+    <!-- MAIN -->
+    <main class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+      <!-- timeline -->
+      <section class="w-full lg:w-[440px] shrink-0 flex flex-col border-b lg:border-b-0 lg:border-r border-zinc-200 dark:border-zinc-800 min-h-0">
+        <div class="px-4 py-2.5 text-xs uppercase tracking-wide text-zinc-400 border-b border-zinc-200 dark:border-zinc-800">Reasoning trace</div>
+        <div id="timeline" class="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
+          <div id="empty" class="text-sm text-zinc-400 p-6 text-center leading-relaxed">
+            Ask anything below — the model will build the answer step by step through FPF,
+            and you'll watch each move (and the firewall catching mistakes) appear here.
+          </div>
         </div>
-      </div>
-    </aside>
-
-    <!-- TIMELINE -->
-    <section class="w-full lg:w-[380px] shrink-0 border-b lg:border-b-0 lg:border-r border-slate-800 flex flex-col h-72 lg:h-auto">
-      <div class="px-5 py-3 border-b border-slate-800 text-sm font-semibold text-slate-300">Reasoning timeline</div>
-      <div id="timeline" class="flex-1 overflow-y-auto p-4 space-y-2.5"></div>
-    </section>
-
-    <!-- GRAPH + INSPECTOR -->
-    <main class="relative flex-1 h-[480px] lg:h-auto">
-      <div class="px-5 py-3 border-b border-slate-800 text-sm font-semibold text-slate-300">Knowledge graph</div>
-      <div id="graph" class="absolute inset-0 top-[45px]"></div>
-      <div id="inspector" class="hidden absolute top-[60px] right-3 left-3 lg:left-auto lg:w-96 max-h-[80%] overflow-auto bg-slate-900/95 border border-slate-700 rounded-xl shadow-2xl p-4 backdrop-blur">
-        <div class="flex items-center justify-between mb-2">
-          <div id="inspector-title" class="text-sm font-semibold"></div>
-          <button onclick="document.getElementById('inspector').classList.add('hidden')" class="text-slate-500 hover:text-slate-200">✕</button>
+      </section>
+      <!-- graph -->
+      <div class="relative flex-1 min-h-[320px]">
+        <div class="px-4 py-2.5 text-xs uppercase tracking-wide text-zinc-400 border-b border-zinc-200 dark:border-zinc-800">Knowledge graph</div>
+        <div id="graph" class="absolute inset-0 top-[37px]"></div>
+        <div id="inspector" class="hidden absolute top-[52px] right-3 left-3 lg:left-auto lg:w-[380px] max-h-[78%] overflow-auto bg-white/95 dark:bg-zinc-900/95 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl p-4 backdrop-blur">
+          <div class="flex items-center justify-between mb-2">
+            <div id="inspector-title" class="text-sm font-semibold"></div>
+            <button onclick="document.getElementById('inspector').classList.add('hidden')" class="text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100">✕</button>
+          </div>
+          <pre id="inspector-body" class="mono text-xs whitespace-pre-wrap leading-relaxed"></pre>
         </div>
-        <pre id="inspector-body" class="mono text-xs text-slate-300 whitespace-pre-wrap"></pre>
       </div>
     </main>
+
+    <!-- CHAT INPUT -->
+    <footer class="shrink-0 border-t border-zinc-200 dark:border-zinc-800 p-3">
+      <div class="max-w-4xl mx-auto flex items-end gap-2">
+        <div class="flex-1 flex items-end rounded-2xl border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-4 py-2.5 focus-within:ring-2 focus-within:ring-indigo-500">
+          <textarea id="task" rows="1" placeholder="Ask anything — e.g. Choose the datastore for a high-write Bitcoin telemetry pipeline and justify it"
+            class="flex-1 bg-transparent resize-none max-h-40 text-sm focus:outline-none placeholder:text-zinc-400"></textarea>
+        </div>
+        <button id="run" class="h-11 px-5 rounded-2xl font-semibold text-white bg-gradient-to-r from-indigo-500 to-emerald-500 hover:opacity-90 transition disabled:opacity-50">Run ▸</button>
+      </div>
+      <div id="status" class="max-w-4xl mx-auto mt-1.5 px-1 text-xs text-zinc-500"></div>
+    </footer>
   </div>
+
+  <!-- REPORT DRAWER -->
+  <div id="report" class="hidden fixed inset-0 z-20">
+    <div class="absolute inset-0 bg-black/40" onclick="document.getElementById('report').classList.add('hidden')"></div>
+    <div class="absolute right-0 top-0 h-full w-full max-w-lg bg-white dark:bg-zinc-950 border-l border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-y-auto p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold">Reasoning report</h2>
+        <button onclick="document.getElementById('report').classList.add('hidden')" class="text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100">✕</button>
+      </div>
+      <div id="report-body" class="space-y-4 text-sm leading-relaxed"></div>
+    </div>
+  </div>
+
   <script src="/app.js"></script>
 </body>
 </html>

@@ -32,6 +32,41 @@ _FINISH_TOOL = "finish_reasoning"
 # tool name -> input_schema, built once from the ontology types.
 _SCHEMAS = {t["name"]: t["input_schema"] for t in tool_schemas()}
 
+# Shared, demanding instruction: think *through* FPF, not the minimum to DONE.
+SYSTEM_PROMPT = (
+    "You are an FPF reasoning engine. Work a real, thorough analysis of the task "
+    "through the First Principles Framework — do not rush to a decision.\n"
+    "Build the reasoning step by step by calling one tool per move:\n"
+    "  • first declare a BoundedContext (the frame and its local invariants);\n"
+    "  • assert SEVERAL distinct Claims that actually bear on the question;\n"
+    "  • attach Evidence to the important claims, each with an explicit scope and "
+    "recency window; mark empirical vs deductive honestly;\n"
+    "  • when you decide, lay out the real option set and the choice rule, and "
+    "rely on the claims you established;\n"
+    "  • use PromiseContent / Commitment / Method where the task involves "
+    "obligations or ways of working.\n"
+    "Only call finish_reasoning once the analysis genuinely covers the question "
+    "(typically after multiple claims, evidence, and a justified decision).\n"
+    "EVERY tool call MUST include a `rationale`: one or two plain sentences saying "
+    "WHY you are making this move now. The tool call is your only output."
+)
+
+
+def with_rationale(schema: dict[str, Any]) -> dict[str, Any]:
+    """Add a required `rationale` property to a tool's input schema."""
+    s = json_copy(schema)
+    s.setdefault("properties", {})["rationale"] = {
+        "type": "string",
+        "description": "One or two plain sentences: why this move, now.",
+    }
+    return s
+
+
+def json_copy(obj: Any) -> Any:
+    import copy
+
+    return copy.deepcopy(obj)
+
 
 def kb_summary(kb: KnowledgeBase) -> dict[str, list[str]]:
     """Compact view of what already exists, so proposals reference real ids."""
@@ -74,31 +109,59 @@ class ScriptedPolicy:
     in ``responses`` for its raw object) or the ``FINISH`` sentinel.
     """
 
-    def __init__(self, moves: list[str], responses: dict[str, dict[str, Any]]) -> None:
+    def __init__(
+        self,
+        moves: list[str],
+        responses: dict[str, dict[str, Any]],
+        rationales: Optional[dict[str, str]] = None,
+    ) -> None:
         self._moves = list(moves)
         self._responses = responses
+        self._rationales = rationales or {}
         self._i = 0
+        self.last_rationale: Optional[str] = None
 
     def choose(self, **_: Any) -> Move:
         if self._i >= len(self._moves):
             return (FINISH, None)
         move = self._moves[self._i]
         self._i += 1
+        key = move if move != FINISH else "finish"
+        self.last_rationale = self._rationales.get(f"{key}:{self._i}") or self._rationales.get(key)
         if move == FINISH:
             return (FINISH, None)
         return (move, self._responses[move])
 
 
+class SequencePolicy:
+    """Replays an explicit list of moves with rationales (for rich demos/tests).
+
+    Each move is ``(kind, raw, rationale)`` or the ``FINISH`` sentinel.
+    """
+
+    def __init__(self, moves: list) -> None:
+        self._moves = list(moves)
+        self._i = 0
+        self.last_rationale: Optional[str] = None
+
+    def choose(self, **_: Any) -> Move:
+        if self._i >= len(self._moves):
+            self.last_rationale = None
+            return (FINISH, None)
+        m = self._moves[self._i]
+        self._i += 1
+        if m == FINISH:
+            self.last_rationale = None
+            return (FINISH, None)
+        kind, raw, rationale = m
+        self.last_rationale = rationale
+        return (kind, raw)
+
+
 class AnthropicPolicy:
     """Real policy: Claude picks the next move via forced tool use."""
 
-    SYSTEM = (
-        "You are an FPF reasoning engine. Advance the work by choosing exactly one "
-        "move: call one tool to emit an FPF object, or call finish_reasoning to "
-        "close the work once at least one decision has been recorded. Every field "
-        "must satisfy the tool schema and reference only ids that already exist. "
-        "The tool call is your only output — never write prose."
-    )
+    SYSTEM = SYSTEM_PROMPT
 
     def __init__(self, *, model: str = DEFAULT_MODEL, client: Any = None) -> None:
         if client is None:
@@ -107,6 +170,7 @@ class AnthropicPolicy:
             client = anthropic.Anthropic()
         self._client = client
         self._model = model
+        self.last_rationale: Optional[str] = None
 
     def choose(
         self,
@@ -123,7 +187,7 @@ class AnthropicPolicy:
             {
                 "name": KIND_TO_TOOL[k],
                 "description": f"Emit an FPF {k}.",
-                "input_schema": _SCHEMAS[KIND_TO_TOOL[k]],
+                "input_schema": with_rationale(_SCHEMAS[KIND_TO_TOOL[k]]),
             }
             for k in sorted(allowed_kinds)
         ]
@@ -132,7 +196,7 @@ class AnthropicPolicy:
                 {
                     "name": _FINISH_TOOL,
                     "description": "Close the work phase; the task is complete.",
-                    "input_schema": {"type": "object", "properties": {}},
+                    "input_schema": with_rationale({"type": "object", "properties": {}}),
                 }
             )
         resp = self._client.messages.create(
@@ -145,9 +209,11 @@ class AnthropicPolicy:
         )
         for block in resp.content:
             if getattr(block, "type", None) == "tool_use":
+                args = dict(block.input)
+                self.last_rationale = args.pop("rationale", None)
                 if block.name == _FINISH_TOOL:
                     return (FINISH, None)
-                return (TOOL_TO_KIND[block.name], dict(block.input))
+                return (TOOL_TO_KIND[block.name], args)
         raise RuntimeError("model did not emit a tool call")
 
 

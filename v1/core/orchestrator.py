@@ -50,6 +50,7 @@ class StepResult:
     object_id: Optional[str]
     sha: Optional[str]  # commit sha when ok
     kind: Optional[str] = None  # FPF kind of the move ("finish" for finish)
+    rationale: Optional[str] = None  # the model's plain-language reasoning for the move
     violations: list[Violation] = field(default_factory=list)
     verification: Optional[SandboxResult] = None
     rolled_back: bool = False
@@ -94,6 +95,7 @@ class Orchestrator:
         thought: str = "",
         artifact: Optional[str] = None,
         verify: Optional[Verifier] = None,
+        rationale: Optional[str] = None,
     ) -> StepResult:
         """Execute one step as an all-or-nothing transaction."""
         before = self.sm.step
@@ -157,6 +159,7 @@ class Orchestrator:
                 object_id=obj.id,
                 sha=None,
                 kind=kind,
+                rationale=rationale,
                 verification=vres,
                 rolled_back=True,
             )
@@ -184,6 +187,7 @@ class Orchestrator:
             object_id=obj.id,
             sha=step_sha,
             kind=kind,
+            rationale=rationale,
             verification=vres,
         )
 

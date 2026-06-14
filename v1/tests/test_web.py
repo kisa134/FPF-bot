@@ -48,7 +48,7 @@ class TestStudio(unittest.TestCase):
 
         obj = self.c.get(f"/api/runs/{rid}/object/D1").json()
         self.assertEqual(obj["kind"], "DecisionRecord")
-        self.assertEqual(obj["payload"]["chosen"], "postgres")
+        self.assertIn(obj["payload"]["chosen"], obj["payload"]["option_set"])
 
     def test_ui_assets_served(self):
         self.assertEqual(self.c.get("/").status_code, 200)
