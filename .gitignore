@@ -4,5 +4,3 @@ __pycache__/
 *.sqlite3
 .venv/
 
-# local secrets (never commit)
-v1/policy/_secret.py
