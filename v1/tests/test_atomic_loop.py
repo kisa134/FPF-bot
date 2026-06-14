@@ -39,7 +39,8 @@ def _evidence_raw():
         "kind": "empirical",
         "target_claim_id": "C1",
         "claim_scope": "p95 latency, 2026-Q2",
-        "timespan": {"valid_from": NOW.isoformat(), "valid_until": LATER.isoformat()},
+        "valid_from": NOW.isoformat(),
+        "valid_until": LATER.isoformat(),
         "source": "benchmark-417",
     }
 

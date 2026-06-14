@@ -63,9 +63,30 @@ class StateManager:
     kb: KnowledgeBase = field(default_factory=KnowledgeBase)
     step: Step = Step.FRAME
 
+    #: Soft caps that force a bounded analysis to converge on a decision instead
+    #: of a verbose model enumerating claims/evidence forever.
+    MAX_CLAIMS = 6
+    MAX_EVIDENCE = 4
+
     def accepts(self) -> set[str]:
-        """Object kinds the agent may legally submit right now."""
-        return set(_ACCEPTS.get(self.step, set()))
+        """Object kinds the agent may legally submit right now.
+
+        The WORK phase narrows as the analysis matures so the agent must
+        progress instead of looping: once a frame exists it cannot re-declare
+        the context; past the claim/evidence caps those kinds drop out; and once
+        a decision is recorded, nothing remains to submit — only finishing.
+        """
+        allowed = set(_ACCEPTS.get(self.step, set()))
+        if self.step is Step.WORK:
+            if self.kb.contexts:
+                allowed.discard("BoundedContext")
+            if len(self.kb.claims) >= self.MAX_CLAIMS:
+                allowed.discard("Claim")
+            if len(self.kb.evidence) >= self.MAX_EVIDENCE:
+                allowed.discard("Evidence")
+            if self.kb.decisions:
+                allowed.clear()  # a decision exists → the only move left is finish
+        return allowed
 
     def can_finish(self) -> bool:
         """Finishing is lawful once WORK has produced a decision (C.11)."""

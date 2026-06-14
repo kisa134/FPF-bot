@@ -57,6 +57,7 @@ class Planner:
         """Drive the loop. ``on_step`` is called after every move (for live UIs)."""
         history: list[StepResult] = []
         steps = 0
+        stalls = 0  # consecutive moves that failed after retries
 
         while self.orch.step is not Step.DONE and steps < self.max_steps:
             recall = self._recall(task)
@@ -89,13 +90,28 @@ class Planner:
                     break
                 feedback = result.violations or []
 
-            if result is None or not result.ok:
+            if result is not None and result.ok:
+                stalls = 0
+                continue
+
+            # The move kept failing. Don't kill the whole run — if we already
+            # have a decision, finish; otherwise skip and let the team try a
+            # different move next iteration. Abort only on a real dead end.
+            if self.orch.sm.can_finish():
+                fin = self.orch.finish(task=task)
+                history.append(fin)
+                steps += 1
+                if on_step is not None:
+                    on_step(fin)
+                continue
+            stalls += 1
+            if stalls > 4:
                 return PlanResult(
                     ok=False,
                     final_step=self.orch.step,
                     steps_taken=steps,
                     history=history,
-                    aborted_reason=f"move failed after {self.max_retries + 1} attempts",
+                    aborted_reason="stalled: the team could not make a valid move",
                 )
 
         ok = self.orch.step is Step.DONE

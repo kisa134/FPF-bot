@@ -47,6 +47,11 @@ SYSTEM_PROMPT = (
     "obligations or ways of working.\n"
     "Only call finish_reasoning once the analysis genuinely covers the question "
     "(typically after multiple claims, evidence, and a justified decision).\n"
+    "CRITICAL — keep moving forward: NEVER re-declare or duplicate anything whose "
+    "id already appears in the knowledge base. Each id is created exactly once. "
+    "Declare the context only once, then move on to claims → evidence → a "
+    "decision. After a few claims (with evidence) and one justified decision, call "
+    "finish_reasoning. Do not stall or repeat yourself.\n"
     "EVERY tool call MUST include a `rationale`: one or two plain sentences saying "
     "WHY you are making this move now. The tool call is your only output."
 )

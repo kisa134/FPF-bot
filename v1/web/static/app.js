@@ -124,6 +124,34 @@ function finish(ev) {
                      : `<span class="text-amber-500 font-medium">${ev.reason ? "ESCALATED" : "STOPPED"}</span>`;
   const by = ev.served_by ? ` · <span class="mono">${esc(ev.served_by)}</span>` : "";
   $("status").innerHTML = `${head} · ${ev.committed} committed${by}`;
+  showAnswer(ev);
+}
+
+// Answer-first: surface the decision at the top once the team is done.
+async function showAnswer(ev) {
+  if (!currentRun) return;
+  const g = await (await fetch(`/api/runs/${currentRun}/graph`)).json();
+  const dnode = g.nodes.find((n) => n.kind === "DecisionRecord");
+  const claims = g.nodes.filter((n) => n.kind === "Claim").length;
+  const evid = g.nodes.filter((n) => n.kind === "Evidence").length;
+  const card = document.createElement("div");
+  card.className = "fade-in rounded-2xl border-2 p-4 mb-1";
+  if (dnode) {
+    const { payload: d } = await (await fetch(`/api/runs/${currentRun}/object/${encodeURIComponent(dnode.id)}`)).json();
+    card.style.borderColor = "#34e3a4";
+    card.innerHTML = `
+      <div class="text-xs uppercase tracking-wide text-emerald-500 mb-1">Answer · ${esc(d.decision_subject || "")}</div>
+      <div class="text-2xl font-bold" style="color:#34e3a4">${esc(d.chosen)}</div>
+      <div class="mt-1 text-sm text-zinc-500">${esc(d.choice_rule || "")}</div>
+      <div class="mt-2 text-[11px] text-zinc-400">based on ${claims} claims · ${evid} evidence · audited by the Censor${ev.served_by ? ` · ${esc(ev.served_by)}` : ""}</div>
+      <div class="mt-1 text-[11px] text-zinc-400">↓ scroll to see exactly how the team reached this</div>`;
+  } else {
+    card.style.borderColor = ev.ok ? "#34e3a4" : "#ffb020";
+    card.innerHTML = `<div class="text-xs uppercase tracking-wide text-zinc-400 mb-1">Result</div>
+      <div class="text-sm">${ev.ok ? "Analysis complete — see the trace below." : "The team could not reach a confident answer" + (ev.reason ? ` (${esc(ev.reason)})` : "") + " — escalated for a human."}</div>`;
+  }
+  $("feed").prepend(card);
+  $("tab-team").scrollTop = 0;
 }
 
 // graph ----------------------------------------------------------------------

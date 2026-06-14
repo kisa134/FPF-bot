@@ -29,7 +29,8 @@ GOOD = {
         "kind": "empirical",
         "target_claim_id": "C1",
         "claim_scope": "p95 latency, 2026-Q2",
-        "timespan": {"valid_from": NOW.isoformat(), "valid_until": LATER.isoformat()},
+        "valid_from": NOW.isoformat(),
+        "valid_until": LATER.isoformat(),
         "source": "benchmark-417",
     },
     "DecisionRecord": {
@@ -117,7 +118,7 @@ class TestAbort(unittest.TestCase):
             planner = Planner(d, _HopelessPolicy(), max_retries=2)
             res = planner.run(Task("t3"))
             self.assertFalse(res.ok)
-            self.assertIn("failed after 3 attempts", res.aborted_reason)
+            self.assertIn("stalled", res.aborted_reason)
             self.assertEqual(res.final_step, Step.WORK)  # framed, never closed
 
 
