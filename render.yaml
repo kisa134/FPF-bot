@@ -1,0 +1,13 @@
+# One-click deploy: https://render.com/deploy?repo=https://github.com/kisa134/FPF-bot
+# Render reads this blueprint, provisions a free web service, and serves FPF Studio.
+services:
+  - type: web
+    name: fpf-studio
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn v1.web.server:app --host 0.0.0.0 --port $PORT
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"

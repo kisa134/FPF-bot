@@ -49,6 +49,7 @@ class StepResult:
     step_after: Step
     object_id: Optional[str]
     sha: Optional[str]  # commit sha when ok
+    kind: Optional[str] = None  # FPF kind of the move ("finish" for finish)
     violations: list[Violation] = field(default_factory=list)
     verification: Optional[SandboxResult] = None
     rolled_back: bool = False
@@ -120,6 +121,7 @@ class Orchestrator:
                 step_after=before,
                 object_id=str(raw.get("id", "?")),
                 sha=None,
+                kind=kind,
                 violations=result.violations,
             )
         obj = result.parsed
@@ -154,6 +156,7 @@ class Orchestrator:
                 step_after=before,  # state machine did not move
                 object_id=obj.id,
                 sha=None,
+                kind=kind,
                 verification=vres,
                 rolled_back=True,
             )
@@ -168,6 +171,7 @@ class Orchestrator:
                 step_after=before,
                 object_id=obj.id,
                 sha=None,
+                kind=kind,
                 violations=out.violations,
                 verification=vres,
                 rolled_back=True,
@@ -179,6 +183,7 @@ class Orchestrator:
             step_after=self.sm.step,
             object_id=obj.id,
             sha=step_sha,
+            kind=kind,
             verification=vres,
         )
 
@@ -193,6 +198,7 @@ class Orchestrator:
                 step_after=before,
                 object_id=None,
                 sha=None,
+                kind="finish",
                 violations=out.violations,
             )
         sha = self.memory.checkpoint(
@@ -205,6 +211,7 @@ class Orchestrator:
             step_after=self.sm.step,
             object_id=None,
             sha=sha,
+            kind="finish",
         )
 
     # ----------------------------------------------------------------- #
@@ -226,6 +233,7 @@ class Orchestrator:
             step_after=before,
             object_id=str(raw.get("id", "?")),
             sha=None,
+            kind=kind,
             violations=[
                 Violation(
                     code=code,

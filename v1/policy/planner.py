@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from ..core.orchestrator import Orchestrator, StepResult, Task, Verifier
 from ..core.state_manager import Step
@@ -52,7 +52,9 @@ class Planner:
         *,
         thought: str = "",
         verify: Optional[Verifier] = None,
+        on_step: Optional[Callable[[StepResult], None]] = None,
     ) -> PlanResult:
+        """Drive the loop. ``on_step`` is called after every move (for live UIs)."""
         history: list[StepResult] = []
         steps = 0
 
@@ -79,6 +81,8 @@ class Planner:
                     )
                 history.append(result)
                 steps += 1
+                if on_step is not None:
+                    on_step(result)
                 if result.ok:
                     break
                 feedback = result.violations or []

@@ -45,6 +45,21 @@ pip install "pydantic>=2,<3"
 python -m unittest discover -s v1/tests -p 'test_*.py' -v
 ```
 
+## Web UI — FPF Studio
+
+A live reasoning console: submit a task, watch the agent build its reasoning
+move-by-move (rejections shown in red as the firewall catches them), and explore
+the resulting knowledge graph — click any node to inspect its FPF object.
+
+```bash
+pip install fastapi uvicorn
+python -m v1.web        # → http://127.0.0.1:8000
+```
+
+`web/server.py` (FastAPI) wraps the Planner; each move streams to the browser
+over SSE (`Planner.run(on_step=...)`). Frontend: Tailwind + Cytoscape, no build
+step. Provider selectable in the UI (Demo / WaveSpeed / Claude).
+
 ## Run the loop
 
 ```bash
