@@ -2,8 +2,8 @@
 <html lang="en" class="dark">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>FPF Studio</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>FPF Studio · Swarm</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>tailwind.config = { darkMode: "class" };</script>
   <script src="https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
@@ -11,88 +11,74 @@
     :root { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
     #graph { width: 100%; height: 100%; }
-    .fade-in { animation: fade .3s cubic-bezier(.2,.7,.3,1) both; }
-    @keyframes fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-    ::-webkit-scrollbar { width: 8px; height: 8px; }
-    ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 8px; }
+    .fade-in { animation: f .28s cubic-bezier(.2,.7,.3,1) both; }
+    @keyframes f { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+    ::-webkit-scrollbar { width: 7px; } ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 7px; }
     .dark ::-webkit-scrollbar-thumb { background: #27272a; }
     textarea { field-sizing: content; }
   </style>
 </head>
-<body class="h-screen overflow-hidden bg-white text-zinc-900 dark:bg-[#0a0a0b] dark:text-zinc-100">
-  <div class="flex flex-col h-full">
+<body class="h-[100dvh] overflow-hidden bg-white text-zinc-900 dark:bg-[#0a0a0b] dark:text-zinc-100">
+  <div class="mx-auto max-w-2xl h-full flex flex-col">
 
     <!-- HEADER -->
-    <header class="shrink-0 h-14 px-4 flex items-center gap-3 border-b border-zinc-200 dark:border-zinc-800">
-      <div class="flex items-center gap-2 mr-2">
-        <div class="w-6 h-6 rounded-md bg-gradient-to-br from-indigo-500 to-emerald-400"></div>
-        <span class="font-semibold tracking-tight">FPF Studio</span>
-        <span class="hidden sm:inline text-xs text-zinc-400">· reasoning under verifiable frames</span>
-      </div>
-
-      <select id="provider" class="ml-auto text-sm rounded-lg px-2.5 py-1.5 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 focus:outline-none">
-        <option value="wavespeed">WaveSpeed · Qwen→DeepSeek→Kimi</option>
-        <option value="demo">Demo (offline example)</option>
+    <header class="shrink-0 h-13 px-3 py-2 flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-800">
+      <div class="w-6 h-6 rounded-md bg-gradient-to-br from-indigo-500 to-emerald-400"></div>
+      <span class="font-semibold tracking-tight text-sm">FPF Swarm</span>
+      <select id="provider" class="ml-auto text-xs rounded-lg px-2 py-1.5 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 focus:outline-none">
+        <option value="wavespeed">WaveSpeed (live)</option>
+        <option value="demo">Demo</option>
         <option value="anthropic">Claude</option>
       </select>
-      <input id="model" placeholder="model id (optional)"
-        class="hidden md:block w-44 text-sm mono rounded-lg px-2.5 py-1.5 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 focus:outline-none" />
-
-      <button id="report-btn" class="text-sm rounded-lg px-3 py-1.5 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition disabled:opacity-40" disabled>Report</button>
-      <button id="theme" title="Toggle theme" class="w-9 h-9 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition">🌙</button>
+      <button id="theme" class="w-8 h-8 rounded-lg border border-zinc-200 dark:border-zinc-800">🌙</button>
     </header>
 
-    <!-- MAIN -->
-    <main class="flex-1 flex flex-col lg:flex-row overflow-hidden">
-      <!-- timeline -->
-      <section class="w-full lg:w-[440px] shrink-0 flex flex-col border-b lg:border-b-0 lg:border-r border-zinc-200 dark:border-zinc-800 min-h-0">
-        <div class="px-4 py-2.5 text-xs uppercase tracking-wide text-zinc-400 border-b border-zinc-200 dark:border-zinc-800">Reasoning trace</div>
-        <div id="timeline" class="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
-          <div id="empty" class="text-sm text-zinc-400 p-6 text-center leading-relaxed">
-            Ask anything below — the model will build the answer step by step through FPF,
-            and you'll watch each move (and the firewall catching mistakes) appear here.
-          </div>
+    <!-- AGENT ROSTER -->
+    <div id="roster" class="shrink-0 px-3 py-2 flex gap-2 overflow-x-auto border-b border-zinc-200 dark:border-zinc-800"></div>
+
+    <!-- TABS -->
+    <nav class="shrink-0 px-3 flex gap-1 border-b border-zinc-200 dark:border-zinc-800 text-sm">
+      <button data-tab="team" class="tab px-3 py-2 border-b-2 border-indigo-500 font-medium">Team</button>
+      <button data-tab="graph" class="tab px-3 py-2 border-b-2 border-transparent text-zinc-400">Graph</button>
+      <button data-tab="report" class="tab px-3 py-2 border-b-2 border-transparent text-zinc-400">Report</button>
+      <span id="status" class="ml-auto self-center text-xs text-zinc-500 truncate max-w-[45%]"></span>
+    </nav>
+
+    <!-- CONTENT -->
+    <main class="flex-1 min-h-0 relative">
+      <section id="tab-team" class="absolute inset-0 overflow-y-auto p-3 space-y-2">
+        <div id="empty" class="text-sm text-zinc-400 p-6 text-center leading-relaxed">
+          Type a task below. A team of FPF agents — an <b>Architect</b> and a skeptical
+          <b>Censor</b> with veto — will work it out together, live. Tap an agent to watch what it does.
         </div>
+        <div id="feed" class="space-y-2"></div>
       </section>
-      <!-- graph -->
-      <div class="relative flex-1 min-h-[320px]">
-        <div class="px-4 py-2.5 text-xs uppercase tracking-wide text-zinc-400 border-b border-zinc-200 dark:border-zinc-800">Knowledge graph</div>
-        <div id="graph" class="absolute inset-0 top-[37px]"></div>
-        <div id="inspector" class="hidden absolute top-[52px] right-3 left-3 lg:left-auto lg:w-[380px] max-h-[78%] overflow-auto bg-white/95 dark:bg-zinc-900/95 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl p-4 backdrop-blur">
+      <section id="tab-graph" class="hidden absolute inset-0">
+        <div id="graph"></div>
+        <div id="inspector" class="hidden absolute top-3 right-3 left-3 max-h-[80%] overflow-auto bg-white/95 dark:bg-zinc-900/95 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl p-4 backdrop-blur">
           <div class="flex items-center justify-between mb-2">
             <div id="inspector-title" class="text-sm font-semibold"></div>
-            <button onclick="document.getElementById('inspector').classList.add('hidden')" class="text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100">✕</button>
+            <button onclick="document.getElementById('inspector').classList.add('hidden')" class="text-zinc-400">✕</button>
           </div>
           <pre id="inspector-body" class="mono text-xs whitespace-pre-wrap leading-relaxed"></pre>
         </div>
-      </div>
+      </section>
+      <section id="tab-report" class="hidden absolute inset-0 overflow-y-auto p-4">
+        <div id="report-body" class="space-y-4 text-sm leading-relaxed"></div>
+      </section>
     </main>
 
     <!-- CHAT INPUT -->
     <footer class="shrink-0 border-t border-zinc-200 dark:border-zinc-800 p-3">
-      <div class="max-w-4xl mx-auto flex items-end gap-2">
+      <div class="flex items-end gap-2">
         <div class="flex-1 flex items-end rounded-2xl border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-4 py-2.5 focus-within:ring-2 focus-within:ring-indigo-500">
-          <textarea id="task" rows="1" placeholder="Ask anything — e.g. Choose the datastore for a high-write Bitcoin telemetry pipeline and justify it"
-            class="flex-1 bg-transparent resize-none max-h-40 text-sm focus:outline-none placeholder:text-zinc-400"></textarea>
+          <textarea id="task" rows="1" placeholder="Ask the team anything… (e.g. choose a datastore for BTC telemetry and justify it)"
+            class="flex-1 bg-transparent resize-none max-h-32 text-sm focus:outline-none placeholder:text-zinc-400"></textarea>
         </div>
         <button id="run" class="h-11 px-5 rounded-2xl font-semibold text-white bg-gradient-to-r from-indigo-500 to-emerald-500 hover:opacity-90 transition disabled:opacity-50">Run ▸</button>
       </div>
-      <div id="status" class="max-w-4xl mx-auto mt-1.5 px-1 text-xs text-zinc-500"></div>
     </footer>
   </div>
-
-  <!-- REPORT DRAWER -->
-  <div id="report" class="hidden fixed inset-0 z-20">
-    <div class="absolute inset-0 bg-black/40" onclick="document.getElementById('report').classList.add('hidden')"></div>
-    <div class="absolute right-0 top-0 h-full w-full max-w-lg bg-white dark:bg-zinc-950 border-l border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-y-auto p-6">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-lg font-semibold">Reasoning report</h2>
-        <button onclick="document.getElementById('report').classList.add('hidden')" class="text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100">✕</button>
-      </div>
-      <div id="report-body" class="space-y-4 text-sm leading-relaxed"></div>
-    </div>
-  </div>
-
   <script src="/app.js"></script>
 </body>
 </html>
