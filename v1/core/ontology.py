@@ -133,8 +133,15 @@ class Evidence(_Frozen):
         min_length=1,
         description="Applicability scope of the support (A.2.4). No bare citations.",
     )
-    timespan: Timespan = Field(
-        ..., description="Window of relevance (A.2.4); guards against staleness."
+    # Flat date strings (LLM-friendly) instead of a nested object — the validity
+    # window of relevance (A.2.4), e.g. "2026-Q2" or "2026-06-14".
+    valid_from: str = Field(
+        ..., min_length=1, description="When the evidence becomes valid (a date/period)."
+    )
+    valid_until: Optional[str] = Field(
+        None,
+        description="When the evidence goes stale (a date/period). REQUIRED for "
+        "empirical evidence — empirical support ages (A.2.4).",
     )
     source: str = Field(
         ..., min_length=1, description="The episteme acting as evidence (e.g. a ref)."
@@ -143,11 +150,10 @@ class Evidence(_Frozen):
     @model_validator(mode="after")
     def _empirical_needs_horizon(self) -> "Evidence":
         # A.2.4:3 "static truth versus ageing confidence": empirical support
-        # decays and must carry a refresh horizon; an open-ended empirical
-        # window silently re-introduces the staleness problem A.2.4 forbids.
-        if self.kind is EvidenceKind.EMPIRICAL and self.timespan.valid_until is None:
+        # decays and must carry a refresh horizon.
+        if self.kind is EvidenceKind.EMPIRICAL and not self.valid_until:
             raise ValueError(
-                "empirical evidence requires timespan.valid_until "
+                "empirical evidence requires valid_until "
                 "(A.2.4: empirical support ages and needs a refresh horizon)"
             )
         return self

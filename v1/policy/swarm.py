@@ -81,6 +81,23 @@ class SwarmRunner:
     def run(self, task: Task, on_event: EventSink) -> dict[str, Any]:
         steps = 0
         committed = 0
+        stalls = 0
+
+        def _finish_or_stall(reason: str) -> Optional[dict[str, Any]]:
+            """If a decision exists, finish; else count a stall (abort if stuck)."""
+            nonlocal stalls
+            if self.orch.sm.can_finish():
+                self.orch.finish(task=task)
+                on_event(AgentEvent("Orchestrator", "recorder", "commit",
+                                    "Enough is settled — closing the work.",
+                                    kind="finish", ok=True))
+                return None  # loop will see DONE and exit
+            stalls += 1
+            if stalls > 4:
+                return {"ok": False, "committed": committed, "steps": steps,
+                        "reason": reason, "final_phase": self.orch.step.value}
+            return False  # skip, keep going
+
         while self.orch.step is not Step.DONE and steps < self.max_steps:
             steps += 1
             allowed = self.orch.sm.accepts()
@@ -129,16 +146,18 @@ class SwarmRunner:
 
             if not approved:
                 on_event(AgentEvent("Censor", "auditor", "escalate",
-                                    "Could not approve after debate — escalating to a human reviewer.",
+                                    "Could not approve this move after debate.",
                                     kind=kind, object_id=raw.get("id"), ok=False))
-                return {"ok": False, "committed": committed, "steps": steps,
-                        "reason": "escalated: censor veto unresolved",
-                        "final_phase": self.orch.step.value}
+                out = _finish_or_stall("escalated: censor veto unresolved")
+                if out:
+                    return out
+                continue
 
             # -- commit (mechanical validator is the final gate) ----------- #
             res = self.orch.commit_step(kind, raw, task=task, rationale=rationale)
             if res.ok:
                 committed += 1
+                stalls = 0
                 on_event(AgentEvent("Orchestrator", "recorder", "commit",
                                     f"Recorded into shared memory.",
                                     kind=kind, object_id=res.object_id, ok=True))
@@ -147,6 +166,9 @@ class SwarmRunner:
                 on_event(AgentEvent("Orchestrator", "recorder", "reject",
                                     f"Structural firewall rejected: {why}",
                                     kind=kind, object_id=raw.get("id"), ok=False))
+                out = _finish_or_stall("stalled: no valid move")
+                if out:
+                    return out
 
         ok = self.orch.step is Step.DONE
         on_event(AgentEvent("Orchestrator", "recorder", "done",

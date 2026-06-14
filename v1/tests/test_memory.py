@@ -12,7 +12,7 @@ import unittest
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from v1.core import BoundedContext, Claim, DecisionRecord, Evidence, Timespan
+from v1.core import BoundedContext, Claim, DecisionRecord, Evidence
 from v1.memory import MarkdownStore, MemoryStore, OntologyError, ReasoningGraph
 
 NOW = datetime(2026, 6, 13)
@@ -33,7 +33,7 @@ def _evidence():
         kind="empirical",
         target_claim_id="C1",
         claim_scope="p95 latency, 2026-Q2",
-        timespan=Timespan(valid_from=NOW, valid_until=LATER),
+        valid_from=NOW.isoformat(), valid_until=LATER.isoformat(),
         source="benchmark-417",
     )
 
@@ -128,7 +128,7 @@ class TestMemoryStore(unittest.TestCase):
                 kind="deductive",
                 target_claim_id="C1",
                 claim_scope="scope",
-                timespan=Timespan(valid_from=NOW),
+                valid_from=NOW.isoformat(),
                 source="proof",
             )
             with self.assertRaises(OntologyError):

@@ -42,7 +42,8 @@ def _evidence_empirical(eid: str = "E1", claim: str = "C1") -> dict:
         "kind": "empirical",
         "target_claim_id": claim,
         "claim_scope": "p95 latency on prod traffic, 2026-Q2",
-        "timespan": {"valid_from": NOW.isoformat(), "valid_until": LATER.isoformat()},
+        "valid_from": NOW.isoformat(),
+        "valid_until": LATER.isoformat(),
         "source": "benchmark-run-417",
     }
 
@@ -64,7 +65,7 @@ class TestIntraObjectInvariants(unittest.TestCase):
         kb = KnowledgeBase(contexts={"Proj.Alpha": BoundedContext(**_ctx())})
         kb.claims["C1"] = _admit_claim(kb)
         bad = _evidence_empirical()
-        bad["timespan"] = {"valid_from": NOW.isoformat()}  # open-ended empirical
+        bad["valid_until"] = None  # open-ended empirical
         res = validate("Evidence", bad, kb)
         self.assertFalse(res.ok)
         self.assertEqual(res.violations[0].spec_anchor, "A.2.4")
@@ -74,7 +75,7 @@ class TestIntraObjectInvariants(unittest.TestCase):
         kb.claims["C1"] = _admit_claim(kb)
         ev = _evidence_empirical()
         ev["kind"] = "deductive"
-        ev["timespan"] = {"valid_from": NOW.isoformat()}  # ok for a proof
+        ev["valid_until"] = None  # ok for a proof
         res = validate("Evidence", ev, kb)
         self.assertTrue(res.ok, res.violations)
 
