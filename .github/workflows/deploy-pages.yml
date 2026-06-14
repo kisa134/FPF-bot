@@ -1,0 +1,40 @@
+name: Deploy Exit Liquidity to GitHub Pages
+
+# Publishes the static game in exit-liquidity/ to GitHub Pages.
+# One-time setup: repo Settings → Pages → Source: "GitHub Actions".
+on:
+  push:
+    branches:
+      - main
+      - claude/exit-liquidity-game-plan-1mah0g
+    paths:
+      - exit-liquidity/**
+      - .github/workflows/deploy-pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment; let in-progress runs finish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - name: Upload game as Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: exit-liquidity
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
