@@ -39,7 +39,7 @@ class Planner:
         agent: str = "planner",
         semantic: Optional[SemanticIndex] = None,
         max_retries: int = 2,
-        max_steps: int = 24,
+        max_steps: int = 40,
     ) -> None:
         self.orch = Orchestrator(memory_root, agent=agent, semantic=semantic)
         self.policy = policy
@@ -73,11 +73,13 @@ class Planner:
                     recall=recall,
                     feedback=feedback,
                 )
+                rationale = getattr(self.policy, "last_rationale", None)
                 if kind == FINISH:
                     result = self.orch.finish(task=task)
                 else:
                     result = self.orch.commit_step(
-                        kind, raw or {}, task=task, thought=thought, verify=verify
+                        kind, raw or {}, task=task, thought=thought,
+                        verify=verify, rationale=rationale,
                     )
                 history.append(result)
                 steps += 1

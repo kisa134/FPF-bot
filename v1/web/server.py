@@ -56,6 +56,7 @@ def _step_event(sr: StepResult) -> dict:
         "ok": sr.ok,
         "kind": sr.kind,
         "object_id": sr.object_id,
+        "rationale": sr.rationale,
         "phase": f"{sr.step_before.value}→{sr.step_after.value}",
         "sha": (sr.sha or "")[:8],
         "rolled_back": sr.rolled_back,
@@ -69,9 +70,9 @@ def _step_event(sr: StepResult) -> dict:
 
 def _build_policy(provider: str, model: Optional[str]):
     if provider == "demo":
-        from ..__main__ import _DEMO_MOVES, _DEMO_OBJECTS
+        from ..policy.demo import demo_policy
 
-        return ScriptedPolicy(_DEMO_MOVES, _DEMO_OBJECTS)
+        return demo_policy()
     if provider == "wavespeed":
         from ..policy import WaveSpeedPolicy
 

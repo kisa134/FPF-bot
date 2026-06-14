@@ -2,7 +2,15 @@
 
 from .openai_compat import OpenAICompatPolicy
 from .planner import Planner, PlanResult
-from .policy import FINISH, AnthropicPolicy, Move, Policy, ScriptedPolicy, kb_summary
+from .policy import (
+    FINISH,
+    AnthropicPolicy,
+    Move,
+    Policy,
+    ScriptedPolicy,
+    SequencePolicy,
+    kb_summary,
+)
 from .wavespeed import WaveSpeedPolicy
 
 __all__ = [
@@ -10,6 +18,7 @@ __all__ = [
     "PlanResult",
     "Policy",
     "ScriptedPolicy",
+    "SequencePolicy",
     "AnthropicPolicy",
     "OpenAICompatPolicy",
     "WaveSpeedPolicy",

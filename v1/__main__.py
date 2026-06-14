@@ -56,7 +56,9 @@ _DEMO_OBJECTS = {
 
 def _build_policy(args: argparse.Namespace):
     if args.demo:
-        return ScriptedPolicy(_DEMO_MOVES, _DEMO_OBJECTS)
+        from .policy.demo import demo_policy
+
+        return demo_policy()
 
     if args.provider == "wavespeed":
         try:
