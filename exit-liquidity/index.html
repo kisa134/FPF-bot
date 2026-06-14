@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#070a0f" />
+  <meta name="description" content="Exit Liquidity — a viral one-screen arcade game. Catch the pump, dodge the rug." />
+  <title>Exit Liquidity</title>
+  <link rel="icon" href="assets/favicon.svg" />
+  <link rel="stylesheet" href="styles/main.css" />
+</head>
+<body data-screen="splash">
+  <div id="app">
+    <!-- play surface -->
+    <canvas id="game" aria-label="Exit Liquidity game board"></canvas>
+
+    <!-- in-game HUD -->
+    <div id="hud" class="hidden">
+      <div class="hud-top">
+        <div class="hud-left">
+          <div class="hud-score-wrap"><span class="hud-cap">SCORE</span><span id="hud-score">0</span></div>
+          <div id="hud-lives" class="hud-lives"></div>
+        </div>
+        <button id="btn-pause" class="icon-btn" aria-label="Pause">II</button>
+      </div>
+      <div id="hud-combo" class="hud-combo"></div>
+      <div id="hud-warn" class="hud-warn"></div>
+      <div class="lane-controls">
+        <button id="btn-left" class="lane-btn" aria-label="Move left">◀</button>
+        <button id="btn-right" class="lane-btn" aria-label="Move right">▶</button>
+      </div>
+    </div>
+
+    <!-- SPLASH -->
+    <section id="screen-splash" class="overlay splash">
+      <div class="logo-mark">EL</div>
+      <h1 class="logo-word">EXIT<span>LIQUIDITY</span></h1>
+      <p class="blink">press start</p>
+    </section>
+
+    <!-- MENU -->
+    <section id="screen-menu" class="overlay hidden">
+      <div class="logo-mark small">EL</div>
+      <h1 class="logo-word">EXIT<span>LIQUIDITY</span></h1>
+      <p class="tagline">catch the pump · dodge the rug</p>
+      <button id="btn-play" class="btn primary">▶ PLAY</button>
+      <button id="btn-howto" class="btn">HOW TO PLAY</button>
+      <div class="menu-foot">
+        <span>BEST <b id="menu-best">0</b></span>
+        <button class="btn-sound icon-btn" aria-label="Toggle sound" aria-pressed="true">🔊</button>
+      </div>
+    </section>
+
+    <!-- HOW TO -->
+    <section id="screen-howto" class="overlay hidden">
+      <h2>HOW TO PLAY</h2>
+      <ul class="howto">
+        <li><b>Move</b> between 4 lanes — tap a lane, swipe, use ◀ ▶, or arrow keys.</li>
+        <li><b class="g">Catch the green &amp; gold</b> — candles, SOL bags, rockets, alpha. Points + combo.</li>
+        <li><b class="r">Dodge the red</b> — red candles, rug bombs, liquidation skulls. Catching one = −1 life.</li>
+        <li><b>Miss the good stuff</b> and you also lose a life. You get <b>3</b>.</li>
+        <li><b class="y">Giga orbs</b> are jackpots — grab them, they never punish.</li>
+        <li>It only gets <b>faster</b>. Survive. Brag. Repeat.</li>
+      </ul>
+      <button id="btn-howto-back" class="btn primary">BACK</button>
+    </section>
+
+    <!-- PAUSE -->
+    <section id="screen-pause" class="overlay hidden">
+      <h2>PAUSED</h2>
+      <button id="btn-resume" class="btn primary">▶ RESUME</button>
+      <button id="btn-quit" class="btn">QUIT TO MENU</button>
+      <div class="menu-foot center">
+        <button class="btn-sound icon-btn" aria-label="Toggle sound" aria-pressed="true">🔊</button>
+      </div>
+    </section>
+
+    <!-- GAME OVER -->
+    <section id="screen-over" class="overlay hidden">
+      <h2 id="over-title" class="over-title">REKT</h2>
+      <div class="over-score" id="over-score">0</div>
+      <div class="over-cap">SCORE</div>
+      <div class="over-stats">
+        <div><span>BEST</span><b id="over-best">0</b></div>
+        <div><span>SURVIVED</span><b id="over-time">0s</b></div>
+        <div><span>MAX COMBO</span><b id="over-combo">x0</b></div>
+      </div>
+      <button id="btn-share" class="btn primary">📤 SHARE SCORE</button>
+      <button id="btn-replay" class="btn">↻ REPLAY</button>
+      <button id="btn-menu" class="btn ghost">MENU</button>
+    </section>
+
+    <!--
+      Future raster-art slot. Drop a mascot PNG at assets/mascot.png and the
+      art will appear over the menu; remove [hidden] / wire it in render later.
+    -->
+    <img id="art-slot" class="hidden" alt="" />
+  </div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
