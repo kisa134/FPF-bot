@@ -61,6 +61,7 @@ MOVES = [
             "id": "e_bench", "kind": "empirical", "target_claim_id": "c_write",
             "claim_scope": "ingest benchmark on 3-node cluster, synthetic venue feed, 2026-Q2",
             "valid_from": _N, "valid_until": _SOON, "source": "loadtest-btc-ingest-07",
+            "reliability": 0.9, "formality": "F2",
         },
         "I attach a dated, scoped benchmark to the write claim so it counts as "
         "empirical evidence — and mark when it goes stale.",
@@ -71,6 +72,7 @@ MOVES = [
             "id": "e_pattern", "kind": "empirical", "target_claim_id": "c_query",
             "claim_scope": "query-log analysis of the existing analytics workload, last 30 days",
             "valid_from": _N, "valid_until": _SOON, "source": "query-audit-2026-05",
+            "reliability": 0.7, "formality": "F1",
         },
         "The query-shape claim needs evidence too: a real query-log audit shows "
         "range aggregations dominate, justifying a columnar engine.",

@@ -52,6 +52,9 @@ SYSTEM_PROMPT = (
     "Declare the context only once, then move on to claims → evidence → a "
     "decision. After a few claims (with evidence) and one justified decision, call "
     "finish_reasoning. Do not stall or repeat yourself.\n"
+    "For Evidence, set an honest `reliability` (0..1) and `formality` (F0 raw/anecdotal "
+    "→ F3 machine-verifiable). The system caps and aggregates these by the weak-link "
+    "rule, so do not inflate them — an unsupported claim is treated as a bare hypothesis.\n"
     "EVERY tool call MUST include a `rationale`: one or two plain sentences saying "
     "WHY you are making this move now. The tool call is your only output."
 )

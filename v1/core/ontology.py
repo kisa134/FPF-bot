@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -146,6 +146,15 @@ class Evidence(_Frozen):
     source: str = Field(
         ..., min_length=1, description="The episteme acting as evidence (e.g. a ref)."
     )
+    # F-G-R trust axes (the G/scope + temporal window are the fields above):
+    formality: Literal["F0", "F1", "F2", "F3"] = Field(
+        "F1",
+        description="Formality of the support: F0 raw/anecdotal, F1 structured, "
+        "F2 fixed-parameter, F3 machine-verifiable. Caps reliability.",
+    )
+    reliability: float = Field(
+        0.6, ge=0.0, le=1.0, description="Honest strength of this evidence, 0..1."
+    )
 
     @model_validator(mode="after")
     def _empirical_needs_horizon(self) -> "Evidence":
@@ -191,6 +200,11 @@ class DecisionRecord(_Frozen):
     supporting_claim_ids: list[str] = Field(
         default_factory=list,
         description="Claims this decision relies on (traceability into Claim/Evidence).",
+    )
+    verify_after: Optional[str] = Field(
+        None,
+        description="Date after which this decision should be re-checked (temporal "
+        "validity). Stale decisions are flagged for re-verification.",
     )
 
     @model_validator(mode="after")
