@@ -138,11 +138,22 @@ async function showAnswer(ev) {
   card.className = "fade-in rounded-2xl border-2 p-4 mb-1";
   if (dnode) {
     const { payload: d } = await (await fetch(`/api/runs/${currentRun}/object/${encodeURIComponent(dnode.id)}`)).json();
+    const conf = await (await fetch(`/api/runs/${currentRun}/confidence`)).json().catch(() => ({}));
+    const p = conf && conf.available ? conf.primary : null;
+    const confColor = p ? (p.band === "high" ? "#34e3a4" : p.band === "medium" ? "#ffb020" : "#f43f5e") : "#a1a1aa";
+    const confLine = p
+      ? `<div class="mt-2 flex items-center gap-2 flex-wrap">
+           <span class="px-2 py-0.5 rounded-md text-xs font-semibold" style="background:${confColor}22;color:${confColor}">Confidence ${p.score.toFixed(2)} · ${p.band}</span>
+           ${p.weakest_link ? `<span class="text-[11px] text-zinc-400">weakest link: <span class="mono">${esc(p.weakest_link)}</span></span>` : ""}
+           ${p.stale ? `<span class="px-2 py-0.5 rounded-md text-[11px] font-semibold" style="background:#f43f5e22;color:#f43f5e">STALE — re-verify</span>` : ""}
+         </div>`
+      : "";
     card.style.borderColor = "#34e3a4";
     card.innerHTML = `
       <div class="text-xs uppercase tracking-wide text-emerald-500 mb-1">Answer · ${esc(d.decision_subject || "")}</div>
       <div class="text-2xl font-bold" style="color:#34e3a4">${esc(d.chosen)}</div>
       <div class="mt-1 text-sm text-zinc-500">${esc(d.choice_rule || "")}</div>
+      ${confLine}
       <div class="mt-2 text-[11px] text-zinc-400">based on ${claims} claims · ${evid} evidence · audited by the Censor${ev.served_by ? ` · ${esc(ev.served_by)}` : ""}</div>
       <div class="mt-1 text-[11px] text-zinc-400">↓ scroll to see exactly how the team reached this</div>`;
   } else {

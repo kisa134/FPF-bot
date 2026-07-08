@@ -18,13 +18,19 @@ from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 
+from ..core.confidence import decision_confidence
 from ..memory import LexicalSemanticIndex
 from ..policy.swarm import AgentEvent, SwarmRunner
 
 _STATIC = Path(__file__).parent / "static"
 app = FastAPI(title="FPF Studio")
+# Open CORS so a separate canvas frontend (future) can call the API + SSE.
+app.add_middleware(
+    CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
+)
 
 
 @dataclass
@@ -144,6 +150,20 @@ def graph(run_id: str) -> dict[str, list]:
         "nodes": [{"id": n.id, "kind": n.kind, "context": n.context_id} for n in g.all_nodes()],
         "edges": [{"source": e.from_id, "target": e.to_id, "rel": e.rel} for e in g.all_edges()],
     }
+
+
+@app.get("/api/runs/{run_id}/confidence")
+def confidence(run_id: str) -> dict[str, Any]:
+    run = _RUNS.get(run_id)
+    if run is None or run.runner is None:
+        raise HTTPException(404, "no such run")
+    kb = run.runner.orch.sm.kb
+    if not kb.decisions:
+        return {"available": False}
+    reports = {
+        did: decision_confidence(d, kb).to_dict() for did, d in kb.decisions.items()
+    }
+    return {"available": True, "primary": next(iter(reports.values())), "by_decision": reports}
 
 
 @app.get("/api/runs/{run_id}/object/{object_id}")
