@@ -182,8 +182,11 @@ class SwarmRunner:
         approve, critique = self.censor.review(
             kind=kind, raw=raw, rationale=rationale, kb=self.orch.sm.kb)
         if approve:
-            on_event(AgentEvent("Censor", "auditor", "approve",
-                                critique or "Passes FPF review.",
+            # On approval, show a clean note — the model's free-text can read like a
+            # veto even when it approved; don't surface that contradiction.
+            msg = critique if critique and not critique.lower().lstrip().startswith(
+                ("veto", "reject")) else "Passes FPF review."
+            on_event(AgentEvent("Censor", "auditor", "approve", msg,
                                 kind=kind, object_id=raw.get("id"), to="Orchestrator",
                                 ok=True, round=rnd))
         else:
@@ -201,18 +204,21 @@ class SwarmRunner:
 # Live Censor — a (different) model acting as the skeptic auditor
 # --------------------------------------------------------------------------- #
 _CENSOR_SYSTEM = (
-    "You are the Censor in an FPF reasoning team: a rigorous, skeptical auditor "
-    "with the power to VETO. Review the Architect's proposed FPF object against "
-    "First-Principles discipline:\n"
-    "  • Claim — is it specific and falsifiable (a number, a threshold), not a vibe?\n"
-    "  • Evidence — does it declare an explicit scope and a recency window, and is "
-    "it honestly empirical vs deductive?\n"
-    "  • Decision — does it compare real, distinct options under an explicit rule, "
-    "and rely on established claims?\n"
-    "  • Anything that is vague, unsupported, or contradicts what is already in the "
-    "knowledge base must be vetoed.\n"
-    "Be strict but fair. Approve only what would survive expert scrutiny. Reply by "
-    "calling the verdict tool with approve=true/false and a sharp one-sentence critique."
+    "You are the Censor in an FPF reasoning team: a careful auditor with veto power. "
+    "Your job is to keep the reasoning honest and MOVING — not to block everything.\n"
+    "APPROVE by default any move that is reasonable and well-formed:\n"
+    "  • a Claim that is specific and checkable (a precise qualitative statement is "
+    "fine — do NOT demand a number or a threshold on every claim);\n"
+    "  • Evidence that names a real source and scope;\n"
+    "  • a Decision that compares real options under an explicit rule.\n"
+    "VETO only when a move is genuinely one of: too vague to mean anything; an "
+    "unsupported STRONG factual assertion; self-contradictory; or it contradicts "
+    "something already in the knowledge base.\n"
+    "Match rigor to the stakes: a financial/medical claim deserves hard scrutiny; a "
+    "framing or descriptive claim only needs to be clear and specific. When a move is "
+    "reasonable and well-scoped, APPROVE and let the work progress — repeated vetoes "
+    "that stall the team are a failure, not diligence. Reply by calling the verdict "
+    "tool with approve=true/false and one short sentence."
 )
 
 

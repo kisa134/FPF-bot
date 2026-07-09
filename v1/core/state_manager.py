@@ -89,8 +89,12 @@ class StateManager:
         return allowed
 
     def can_finish(self) -> bool:
-        """Finishing is lawful once WORK has produced a decision (C.11)."""
-        return self.step is Step.WORK and len(self.kb.decisions) >= 1
+        """Finishing is lawful once WORK has produced a real result — a decision
+        (C.11) for a decision task, or at least two claims for an informational /
+        analytical task that has no single decision to make."""
+        return self.step is Step.WORK and (
+            len(self.kb.decisions) >= 1 or len(self.kb.claims) >= 2
+        )
 
     def submit(self, kind: str, raw: dict[str, Any]) -> SubmitOutcome:
         """Attempt one FPF move. FRAME advances to WORK on a valid context;
