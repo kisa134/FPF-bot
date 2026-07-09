@@ -156,10 +156,23 @@ async function showAnswer(ev) {
       ${confLine}
       <div class="mt-2 text-[11px] text-zinc-400">based on ${claims} claims · ${evid} evidence · audited by the Censor${ev.served_by ? ` · ${esc(ev.served_by)}` : ""}</div>
       <div class="mt-1 text-[11px] text-zinc-400">↓ scroll to see exactly how the team reached this</div>`;
+  } else if (ev.ok) {
+    // Informational task — no single decision. Surface the claims as the answer.
+    const claimNodes = g.nodes.filter((n) => n.kind === "Claim");
+    const stmts = [];
+    await Promise.all(claimNodes.slice(0, 8).map(async (n) => {
+      const r = await fetch(`/api/runs/${currentRun}/object/${encodeURIComponent(n.id)}`);
+      if (r.ok) stmts.push((await r.json()).payload.statement);
+    }));
+    card.style.borderColor = "#34e3a4";
+    card.innerHTML = `
+      <div class="text-xs uppercase tracking-wide text-emerald-500 mb-1">Answer</div>
+      <ul class="text-sm space-y-1">${stmts.map((s) => `<li class="ml-4 list-disc">${esc(s)}</li>`).join("")}</ul>
+      <div class="mt-2 text-[11px] text-zinc-400">${claims} claims · ${evid} evidence · audited by the Censor${ev.served_by ? ` · ${esc(ev.served_by)}` : ""}</div>`;
   } else {
-    card.style.borderColor = ev.ok ? "#34e3a4" : "#ffb020";
-    card.innerHTML = `<div class="text-xs uppercase tracking-wide text-zinc-400 mb-1">Result</div>
-      <div class="text-sm">${ev.ok ? "Analysis complete — see the trace below." : "The team could not reach a confident answer" + (ev.reason ? ` (${esc(ev.reason)})` : "") + " — escalated for a human."}</div>`;
+    card.style.borderColor = "#ffb020";
+    card.innerHTML = `<div class="text-xs uppercase tracking-wide text-amber-500 mb-1">Needs a human</div>
+      <div class="text-sm">The team couldn't converge${ev.reason ? ` (${esc(ev.reason)})` : ""}. Try phrasing it as a concrete decision (e.g. "choose X vs Y and justify").</div>`;
   }
   $("feed").prepend(card);
   $("tab-team").scrollTop = 0;
